@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pytest
+import sys
 from contextlib import contextmanager
 
 class Devkit:
@@ -40,12 +41,12 @@ class RPCDevice:
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
-    print("Configure adv")
+    print("Configure adv", file=sys.stderr)
     pass
 
 def configure_scanner(rpcdevice):
     # configure & start scanner
-    print("Configure scan")
+    print("Configure scan", file=sys.stderr)
     pass
 
 def init_bluetooth(rpcdevice):
