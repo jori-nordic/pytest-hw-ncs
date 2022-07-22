@@ -2,6 +2,7 @@
 
 # Scratchpad for nRF RPC UART transport
 
+import enum
 import struct
 import time
 import threading
@@ -10,20 +11,21 @@ import cbor2
 
 
 class UARTHeader():
-    _size = 4 + 2 + 1
     _header = b'UART'
+    _format = '<4sHB'
+    _size = struct.calcsize(_format)
 
     def __init__(self, length: int, crc: int):
         self.length = length
         self.crc = crc
-        self.raw = struct.pack('<4sHB', self._header, self.length, self.crc)
+        self.raw = struct.pack(self._format, self._header, self.length, self.crc)
 
     @classmethod
     def unpack(cls, packet: bytes):
         packet = packet[:cls._size]
         # print(f'header unpack: buf {packet}')
         try:
-            (header, length, crc) = struct.unpack('<4sHB', packet)
+            (header, length, crc) = struct.unpack(cls._format, packet)
             if header == cls._header:
                 # print('header unpack success')
                 return cls(length, crc)
@@ -51,7 +53,7 @@ class UARTPacket():
         self.raw = self.header.raw + payload
 
     def __repr__(self):
-        return f'header {self.header} payload {self.payload}'
+        return f'UARTPacket: header ({self.header}) payload {self.payload}'
 
     @classmethod
     def unpack(cls, packet: bytes):
@@ -69,12 +71,64 @@ class UARTPacket():
         else:
             return cls(packet)
 
-# class RPCPacket():
-#     # Meant to do the lookup from cmd/evt enums and create the appropriate classes
 
-# Missing:
-# - rpcpacket class that encodes the header
-# - rpcbuilder? class that encodes/decodes the actual cmd/evt payload
+class RPCPacketType(enum.IntEnum):
+    EVT = 0
+    RSP = 1
+    ACK = 2
+    ERR = 3
+    INIT = 4
+    CMD = 0x80
+
+
+class RPCPacket():
+    _format = '<BBBBB'
+    _size = struct.calcsize(_format)
+
+    # Header: SRC + type, ID, DST, GID SRC, GID DST, CBOR u32 (primary)
+    def __init__(self,
+                 packet_type: RPCPacketType,
+                 opcode, src, dst, gid_src, gid_dst,
+                 payload: bytes):
+        self.packet_type = RPCPacketType(packet_type)
+        self.src = src
+        self.dst = dst
+        self.gid_src = gid_src
+        self.gid_dst = gid_dst
+        self.payload = payload
+        self.header = struct.pack(self._format,
+                                  packet_type | src,
+                                  opcode,
+                                  dst,
+                                  gid_src,
+                                  gid_dst)
+
+        # Build whole packet
+        self.packet = UARTPacket(self.header + self.payload)
+        self.raw = self.packet.raw
+
+    def __repr__(self):
+        return f'[{self.packet_type.name}] {self.packet}'
+
+    @classmethod
+    def unpack(cls, packet: bytes):
+        payload = UARTPacket.unpack(packet).payload
+        raw_header = payload[:cls._size]
+        print(f'RPCPacket payload {payload} header {raw_header}')
+        (packet_type,
+         opcode,
+         dst,
+         gid_src,
+         gid_dst) = struct.unpack(cls._format, raw_header)
+
+        if packet_type & RPCPacketType.CMD:
+            src = packet_type & 0x7F
+            packet_type = RPCPacketType.CMD
+        else:
+            src = 0
+
+        return RPCPacket(packet_type, opcode, src, dst, gid_src, gid_dst, payload)
+
 
 class UARTRPC(threading.Thread):
     DEFAULT_TIMEOUT = 0.001
@@ -173,7 +227,7 @@ class UARTRPC(threading.Thread):
             # Header has been decoded
             # Try to decode the packet
             if len(data[self._header._size:]) >= self._header.length:
-                packet = UARTPacket.unpack(data)
+                packet = RPCPacket.unpack(data)
                 # Process data
                 self._payload_handler(packet)
                 # Consume the data in the RX buffer
@@ -186,35 +240,32 @@ class UARTRPC(threading.Thread):
 
         # TODO: maybe re-trigger handle_rxr
 
-def handle_payload(payload: UARTPacket):
-    if payload.payload[0] == 0x04:
+def handle_payload(payload: RPCPacket):
+    # Here we should dispatch based on the packet type
+    # and a LUT of ID-associated functions
+    if payload.packet_type == RPCPacketType.INIT:
         handshake()
 
-    print(f'Payload {payload.payload.hex(" ")}')
+    print(f'Payload handle {payload}')
 
 def handshake():
+    # Doesn't use CBOR
+    # Doesn't have the workaround u32 val in the middle
+
     # Protocol version + RPC group name
-    header = bytearray.fromhex('04 00 ff 00 ff')
     version = b'\x00'
     payload = b'nrf_sample_entropy'
+    packet = RPCPacket(RPCPacketType.INIT,
+                       0, 0, 0xFF, 0, 0xFF,
+                       version + payload)
 
-    packet = bytearray(header + version + payload)
-
-    uart_packet = UARTPacket(packet)
-
-    print(f'Send handshake {uart_packet.raw}')
-    rpc.send(uart_packet.raw)
+    print(f'Send handshake {packet}')
+    rpc.send(packet.raw)
 
 
 rpc = UARTRPC(port='/dev/ttyACM2')
 rpc._payload_handler = handle_payload
 rpc.start()
-
-# Send RPC handshake
-# Doesn't use CBOR
-# Doesn't have the workaround u32 val
-handshake_payload = b'nrf_sample_entropy'
-rpc.send(handshake_payload)
 
 # Receive init command
 # CBOR, has w/a u32
