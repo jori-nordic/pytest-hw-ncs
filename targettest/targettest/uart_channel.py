@@ -40,6 +40,7 @@ class UARTChannel(threading.Thread):
         byte_count = 0
         start_time = time.monotonic()
 
+        print(f'TX: {data.hex(" ")}')
         while data:
             data = data[byte_count:]
 
