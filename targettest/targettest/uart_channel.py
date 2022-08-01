@@ -136,13 +136,12 @@ class UARTRPCChannel(UARTChannel):
                     self.default_packet_handler(packet)
 
                 # Consume the data in the RX buffer
-                data = data[self.state.header._size + self.state.header.length + 1:]
+                data = data[self.state.header._size + self.state.header.length:]
                 self.state.reset()
 
-        self.state.rx_buf += data
+                if len(data) > 0:
+                    self.handle_rx(data)
 
-        # TODO: maybe re-trigger handle_rx
-        # FIXME: header unpack failures when retriggering init on target
 
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
         self.lut[packet_type][opcode] = packet_handler
