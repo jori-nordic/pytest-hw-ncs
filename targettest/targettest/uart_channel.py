@@ -111,7 +111,7 @@ class UARTRPCChannel(UARTChannel):
 
         self.default_packet_handler = default_packet_handler
         self.state = UARTDecodingState()
-        self.lut = {item.value: {} for item in RPCPacketType}
+        self.handler_lut = {item.value: {} for item in RPCPacketType}
 
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
@@ -128,12 +128,7 @@ class UARTRPCChannel(UARTChannel):
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
                 packet = RPCPacket.unpack(data)
-
-                # Call opcode handler if registered, else call default handler
-                if packet.opcode in self.lut[packet.packet_type]:
-                    self.lut[packet.packet_type][packet.opcode](packet)
-                else:
-                    self.default_packet_handler(packet)
+                self.handler(packet)
 
                 # Consume the data in the RX buffer
                 data = data[self.state.header._size + self.state.header.length:]
@@ -142,6 +137,18 @@ class UARTRPCChannel(UARTChannel):
                 if len(data) > 0:
                     self.handle_rx(data)
 
+    def handler_exists(self, packet: RPCPacket):
+        return packet.opcode in self.handler_lut[packet.packet_type]
+
+    def lookup(self, packet: RPCPacket):
+        return self.handler_lut[packet.packet_type][packet.opcode]
+
+    def handler(self, packet: RPCPacket):
+        # Call opcode handler if registered, else call default handler
+        if self.handler_exists(packet):
+            self.lookup(packet)(packet)
+        else:
+            self.default_packet_handler(packet)
 
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
-        self.lut[packet_type][opcode] = packet_handler
+        self.handler_lut[packet_type][opcode] = packet_handler
