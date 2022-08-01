@@ -4,7 +4,7 @@ import serial
 import time
 import threading
 from targettest.uart_packet import UARTHeader
-from targettest.rpc_packet import RPCPacket
+from targettest.rpc_packet import RPCPacket, RPCPacketType
 
 
 class UARTChannel(threading.Thread):
@@ -104,11 +104,13 @@ class UARTRPCChannel(UARTChannel):
                  baudrate=1000000,
                  rtscts=True,
                  ignore_timeout=False,
-                 rx_handler=None,
-                 rpc_handler=None):
+                 default_packet_handler=None):
+
         super().__init__(port, baudrate, rtscts, ignore_timeout, rx_handler=self.handle_rx)
-        self._rpc_handler = rpc_handler
+
+        self.default_packet_handler = default_packet_handler
         self.state = UARTDecodingState()
+        self.lut = {item.value: {} for item in RPCPacketType}
 
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
@@ -125,8 +127,13 @@ class UARTRPCChannel(UARTChannel):
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
                 packet = RPCPacket.unpack(data)
-                # Process data
-                self._rpc_handler(packet)
+
+                # Call opcode handler if registered, else call default handler
+                if packet.opcode in self.lut[packet.packet_type]:
+                    self.lut[packet.packet_type][packet.opcode](packet)
+                else:
+                    self.default_packet_handler(packet)
+
                 # Consume the data in the RX buffer
                 data = data[self.state.header._size + self.state.header.length + 1:]
                 self.state.reset()
@@ -135,3 +142,6 @@ class UARTRPCChannel(UARTChannel):
 
         # TODO: maybe re-trigger handle_rx
         # FIXME: header unpack failures when retriggering init on target
+
+    def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
+        self.lut[packet_type][opcode] = packet_handler

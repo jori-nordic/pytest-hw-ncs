@@ -7,15 +7,10 @@ from targettest.uart_channel import UARTRPCChannel
 from targettest.rpc_packet import (RPCPacket, RPCPacketType)
 
 
-def handle_payload(payload: RPCPacket):
-    # Here we should dispatch based on the packet type
-    # and a LUT of ID-associated functions
-    if payload.packet_type == RPCPacketType.INIT:
-        handshake()
+def default_handler(packet: RPCPacket):
+    print(f'Default RPC packet handler {payload}')
 
-    print(f'Payload handle {payload}')
-
-def handshake():
+def handshake(packet: RPCPacket):
     # Doesn't use CBOR
     # Doesn't have the workaround u32 val in the middle
 
@@ -29,9 +24,15 @@ def handshake():
     print(f'Send handshake {packet}')
     rpc.send(packet.raw)
 
+def init_packet(packet: RPCPacket):
+    print(f'Custom init handler: {packet}')
 
-rpc = UARTRPCChannel(port='/dev/ttyACM6', rpc_handler=handle_payload)
+
+rpc = UARTRPCChannel(port='/dev/ttyACM6', default_packet_handler=default_handler)
 rpc.start()
+
+rpc.register_packet(RPCPacketType.INIT, 0x00, handshake)
+rpc.register_packet(RPCPacketType.CMD, 0x01, init_packet)
 
 # Receive init command
 # CBOR, has w/a u32
