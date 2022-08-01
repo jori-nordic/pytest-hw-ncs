@@ -41,7 +41,12 @@ class RPCPacket():
         self.raw = self.packet.raw
 
     def __repr__(self):
-        return f'[{self.packet_type.name}] {self.packet}'
+        return '{} {:02x} LEN {} DATA {}'.format(
+            self.packet_type.name,
+            self.opcode,
+            len(self.payload),
+            self.payload.hex(' ')
+        )
 
     @classmethod
     def unpack(cls, packet: bytes):
@@ -50,8 +55,6 @@ class RPCPacket():
         # Separate RPC cmd/evt payload from RPC header
         raw_header = payload[:cls._size]
         payload = payload[cls._size:]
-
-        print(f'RPCPacket payload {payload} header {raw_header}')
 
         (packet_type,
          opcode,

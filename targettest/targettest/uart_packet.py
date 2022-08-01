@@ -16,11 +16,9 @@ class UARTHeader():
     @classmethod
     def unpack(cls, packet: bytes):
         packet = packet[:cls._size]
-        # print(f'header unpack: buf {packet}')
         try:
             (header, length, crc) = struct.unpack(cls._format, packet)
             if header == cls._header:
-                # print('header unpack success')
                 return cls(length, crc)
 
         except struct.error:
