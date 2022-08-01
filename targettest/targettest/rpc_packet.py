@@ -23,6 +23,7 @@ class RPCPacket():
                  opcode, src, dst, gid_src, gid_dst,
                  payload: bytes):
         self.packet_type = RPCPacketType(packet_type)
+        self.opcode = opcode
         self.src = src
         self.dst = dst
         self.gid_src = gid_src
