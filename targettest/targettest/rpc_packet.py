@@ -17,7 +17,7 @@ class RPCPacket():
     _format = '<BBBBB'
     _size = struct.calcsize(_format)
 
-    # Header: SRC + type, ID, DST, GID SRC, GID DST, CBOR u32 (primary)
+    # Header: SRC + type, ID, DST, GID SRC, GID DST
     def __init__(self,
                  packet_type: RPCPacketType,
                  opcode, src, dst, gid_src, gid_dst,
@@ -67,6 +67,5 @@ class RPCPacket():
             packet_type = RPCPacketType.CMD
         else:
             src = 0
-
 
         return RPCPacket(packet_type, opcode, src, dst, gid_src, gid_dst, payload)
