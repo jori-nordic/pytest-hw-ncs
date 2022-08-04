@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 from targettest.rpc import RPCDevice
-from targettest.devkit import get_available_dk
 import pytest
 import sys
 from contextlib import contextmanager
-
-@contextmanager
-def hwdevice():
-    dev = get_available_dk()
-    dev.open()
-    yield dev
-    dev.close()
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
@@ -27,27 +19,25 @@ def init_bluetooth(rpcdevice):
     pass
 
 @contextmanager
-def rpcdevice(hwdev):
+def rpcdevice(dev):
     # Manage RPC transport
     # device = RPC "pipe"
-    device = RPCDevice(hwdev)
+    device = RPCDevice(dev)
     device.open()
     yield device
     device.close()
 
 @pytest.fixture
-def dut():
-    with hwdevice() as hwdev:
-        with rpcdevice(hwdev) as rpcdev:
-            init_bluetooth(rpcdev)
-            yield rpcdev
+def dut(hwdevice):
+    with rpcdevice(hwdevice) as rpcdev:
+        init_bluetooth(rpcdev)
+        yield rpcdev
 
 @pytest.fixture
-def tester():
-    with hwdevice() as hwdev:
-        with rpcdevice(hwdev) as rpcdev:
-            init_bluetooth(rpcdev)
-            yield rpcdev
+def tester(hwdevice):
+    with rpcdevice(hwdevice) as rpcdev:
+        init_bluetooth(rpcdev)
+        yield rpcdev
 
 @pytest.fixture
 def advertiser(dut):
