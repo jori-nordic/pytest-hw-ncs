@@ -1,11 +1,12 @@
 from pynrfjprog import API
+from pynrfjprog import Parameters
 from contextlib import contextmanager
 
 
 # Don't hold a lock on segger API, in order to allow running tests with a debugger.
 
 @contextmanager
-def SeggerApi(family='UNKNOWN', id=None):
+def SeggerEmulator(family='UNKNOWN', id=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
     api = API.API(family)
     api.open()
@@ -17,6 +18,26 @@ def SeggerApi(family='UNKNOWN', id=None):
     if id is not None:
         api.disconnect_from_emu()
     api.close()
+
+@contextmanager
+def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
+    with SeggerEmulator(family, id) as api:
+        if core == 'APP':
+            cpu = Parameters.CoProcessor.CP_APPLICATION
+        elif core == 'NET':
+            cpu = Parameters.CoProcessor.CP_NETWORK
+        else:
+            return None
+
+        print(f'[{id}] connecting...')
+        api.select_coprocessor(cpu)
+        api.connect_to_device()
+        print(f'[{id}] connected')
+
+        yield api
+
+        api.disconnect_from_device()
+        print(f'[{id}] disconnected')
 
 
 class Devkit:
@@ -55,11 +76,10 @@ class Devkit:
 
 devkits = []
 def populate_dks():
-    with SeggerApi() as api:
+    with SeggerEmulator() as api:
         ids = api.enum_emu_snr()
         devices = []
         for id in ids:
-            print(f'connecting to {id}')
             api.connect_to_emu_with_snr(id)
             family = api.read_device_family()
             port = api.enum_emu_com_ports(id)[-1].path
@@ -67,7 +87,7 @@ def populate_dks():
                 Devkit(id, family, f'dk-{family}-{id}', port))
             api.disconnect_from_emu()
 
-        print(f'Available devices: {devkits}')
+        print(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
 
 
 def get_available_dk(family):
@@ -77,28 +97,29 @@ def get_available_dk(family):
     return None
 
 def get_serial_port(id):
-    with SeggerApi() as api:
+    with SeggerEmulator() as api:
         # Will get the last serial port. This is connected to the APP core
         # on nRF53 DKs.
         return api.enum_emu_com_ports(id)[-1].path
 
-def flash(id, family, hex_path, recover=True, reset=True):
-    print(f'Flashing {id} [{family}] with {str(hex_path)}')
-    with SeggerApi(family, id) as api:
-        # TODO: do I need to select the coprocessor here?
+def recover(id, family):
+    with SeggerDevice(family, id) as api:
+        print('recover')
+        api.recover()
 
+def flash(id, family, hex_path, core='APP', reset=True):
+    with SeggerDevice(family, id, core) as cpu:
+        print(f'[{id}] [{family}-{core}] Flashing with {str(hex_path)}')
         # Erase the target's flash
-        if recover:
-            api.recover()
-        else:
-            api.erase_file(hex_path)
+        cpu.erase_file(hex_path)
 
         # Flash & verify
-        api.program_file(hex_path)
-        api.verify_file(hex_path)
+        cpu.program_file(hex_path)
+        cpu.verify_file(hex_path)
 
 def reset(id, family):
-    with SeggerApi(family, id) as api:
+    with SeggerDevice(family, id) as api:
+        print(f'[{id}] reset')
         api.debug_reset()
         # Other ways to reset the device:
         # api.sys_reset()
