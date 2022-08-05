@@ -38,7 +38,7 @@ def devkits():
     populate_dks()
 
 
-@pytest.fixture(scope="class")
+@contextmanager
 def hwdevice(request):
     family = 'NRF53'
 

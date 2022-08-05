@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-from targettest.rpc import RPCDevice
 import pytest
 import sys
+import time
 from contextlib import contextmanager
+from targettest.rpc_packet import RPCPacketType, RPCPacket
+from targettest.uart_channel import UARTRPCChannel
+from conftest import hwdevice
+
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
@@ -21,23 +25,33 @@ def init_bluetooth(rpcdevice):
 @contextmanager
 def rpcdevice(dev):
     # Manage RPC transport
-    # device = RPC "pipe"
-    device = RPCDevice(dev)
-    device.open()
-    yield device
-    device.close()
+    channel = UARTRPCChannel(port=dev.port)
+    channel.start()
+    while not channel.ready:
+        time.sleep(.1)
 
-@pytest.fixture
-def dut(hwdevice):
-    with rpcdevice(hwdevice) as rpcdev:
-        init_bluetooth(rpcdev)
-        yield rpcdev
+    event = channel.get_evt()
+    assert event.opcode == 0x01 # READY event
+    print('Channel ready!')
 
-@pytest.fixture
-def tester(hwdevice):
-    with rpcdevice(hwdevice) as rpcdev:
-        init_bluetooth(rpcdev)
-        yield rpcdev
+    yield channel
+    print('closing channel!')
+
+    channel.close()
+
+@pytest.fixture(scope="class")
+def dut(request):
+    with hwdevice(request) as dev:
+        with rpcdevice(dev) as rpcdev:
+            init_bluetooth(rpcdev)
+            yield rpcdev
+
+@pytest.fixture(scope="class")
+def tester(request):
+    with hwdevice(request) as dev:
+        with rpcdevice(dev) as rpcdev:
+            init_bluetooth(rpcdev)
+            yield rpcdev
 
 @pytest.fixture
 def advertiser(dut):
