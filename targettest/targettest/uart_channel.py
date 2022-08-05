@@ -3,6 +3,7 @@
 import serial
 import time
 import threading
+import queue
 from targettest.uart_packet import UARTHeader
 from targettest.rpc_packet import RPCPacket, RPCPacketType
 
@@ -23,6 +24,7 @@ class UARTChannel(threading.Thread):
         # Maye use serial.threaded instead
         # Set daemon to True so the thread does not prevent the test session from exiting.
         threading.Thread.__init__(self, daemon=True)
+        self.port = port
 
         self._stop_rx_flag = threading.Event() # Used to cleanly stop the RX thread
         self._rx_handler = rx_handler # Mandatory, called for each RX packet/unit
@@ -83,7 +85,7 @@ class UARTChannel(threading.Thread):
 
             self._rx_handler(recv)
 
-    def stop(self):
+    def close(self):
         self._stop_rx_flag.set()
         self.join()
         self._serial.close()
@@ -112,6 +114,8 @@ class UARTRPCChannel(UARTChannel):
         self.default_packet_handler = default_packet_handler
         self.state = UARTDecodingState()
         self.handler_lut = {item.value: {} for item in RPCPacketType}
+        self.ready = False
+        self.events = queue.Queue()
 
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
@@ -144,11 +148,48 @@ class UARTRPCChannel(UARTChannel):
         return self.handler_lut[packet.packet_type][packet.opcode]
 
     def handler(self, packet: RPCPacket):
+        print(f'rx {packet}')
         # Call opcode handler if registered, else call default handler
-        if self.handler_exists(packet):
-            self.lookup(packet)(packet)
+        if packet.packet_type == RPCPacketType.INIT:
+            # TODO: do some validation, store group ID
+            self.send_init()
+            self.ready = True
+        elif packet.packet_type == RPCPacketType.EVT:
+            self.events.put(packet)
+        elif self.handler_exists(packet):
+            self.lookup(packet)(self, packet)
+        elif self.default_packet_handler is not None:
+            self.default_packet_handler(self, packet)
         else:
-            self.default_packet_handler(packet)
+            print(f'[{self.port}]: unhandled packet {packet}')
 
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
         self.handler_lut[packet_type][opcode] = packet_handler
+
+    def send(self, packet: RPCPacket):
+        super().send(packet.raw)
+        # TODO: Wait for response
+        pass
+
+    def get_evt(self, opcode=None, timeout=5):
+        if opcode is None:
+            return self.events.get(timeout=timeout)
+
+        # TODO: add filtering by opcode
+
+        return None
+
+    def send_init(self):
+        # Doesn't use CBOR
+        # Doesn't have the workaround u32 val in the middle
+
+        # Protocol version + RPC group name
+        version = b'\x00'
+        payload = b'nrf_sample_test'
+        packet = RPCPacket(RPCPacketType.INIT,
+                           0, 0, 0xFF, 0, 0xFF,
+                           version + payload)
+
+        print(f'Send handshake {packet}')
+        self.send(packet)
+        print('')
