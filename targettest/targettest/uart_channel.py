@@ -43,7 +43,7 @@ class UARTChannel(threading.Thread):
         byte_count = 0
         start_time = time.monotonic()
 
-        print(f'TX: {data.hex(" ")}')
+        print(f'TX [{self.port}]: {data.hex(" ")}')
         while data:
             data = data[byte_count:]
 
@@ -77,7 +77,7 @@ class UARTChannel(threading.Thread):
                 time.sleep(0.01)
                 continue
 
-            print(f'RX: {recv.hex(" ")}')
+            print(f'RX [{self.port}]: {recv.hex(" ")}')
 
             self._rx_handler(recv)
 
@@ -110,6 +110,7 @@ class UARTRPCChannel(UARTChannel):
 
         print(f'rpc channel init: {port}')
         self.group_name = group_name
+        self.remote_gid = 0
         self.default_packet_handler = default_packet_handler
         self.state = UARTDecodingState()
 
@@ -149,13 +150,19 @@ class UARTRPCChannel(UARTChannel):
 
     def handler(self, packet: RPCPacket):
         print(f'rx {packet}')
+        # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
-            # TODO: do some validation, store group ID
             self.send_init()
+            self.remote_gid = packet.gid_src
+            assert packet.payload == b'\x00' + self.group_name.encode()
             self.ready = True
         elif packet.packet_type == RPCPacketType.EVT:
             self.events.put(packet)
+        elif packet.packet_type == RPCPacketType.RSP:
+            # We just assume only one command can be in-flight at a time
+            # Should be enough for testing, can be extended later.
+            self.rsp = packet
         elif self.handler_exists(packet):
             self.lookup(packet)(self, packet)
         elif self.default_packet_handler is not None:
@@ -166,10 +173,17 @@ class UARTRPCChannel(UARTChannel):
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
         self.handler_lut[packet_type][opcode] = packet_handler
 
-    def send(self, packet: RPCPacket):
+    def cmd(self, opcode: int, data: bytes=b''):
+        packet = RPCPacket(RPCPacketType.CMD, opcode,
+                           src=0, dst=0xFF, gid_src=0, gid_dst=self.remote_gid,
+                           payload=data)
+        self.rsp = None
+
         super().send(packet.raw)
-        # TODO: Wait for response
-        pass
+        while self.rsp is None:
+            time.sleep(.01)
+
+        return self.rsp
 
     def get_evt(self, opcode=None, timeout=5):
         if opcode is None:
@@ -189,7 +203,7 @@ class UARTRPCChannel(UARTChannel):
                            version + payload)
 
         print(f'Send handshake {packet}')
-        self.send(packet)
+        super().send(packet.raw)
         print('')
 
 
