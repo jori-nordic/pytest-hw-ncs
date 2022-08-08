@@ -65,6 +65,7 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
 
     yield dev
 
+    # TODO: flush per-testcase
     dev.stop_logging()
     dev.close()
 
@@ -77,7 +78,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     channel.start()
     print('Wait for RPC ready')
     # Wait until we have received the handshake/init packet
-    reset(device.segger_id, device.family)
+    device.reset()
     while not channel.ready:
         time.sleep(.1)
 

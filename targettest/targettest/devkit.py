@@ -1,12 +1,15 @@
 from pynrfjprog import LowLevel
 from pynrfjprog import Parameters
 from contextlib import contextmanager
+import threading
+import time
 
 
 # Don't hold a lock on segger API. This might seem counter-intuitive but it'll
 # help when making an option to not touch the segger DLL at all in order to keep
 # a debugger connected.
 
+# TODO: add try-except to all contextmanagers
 @contextmanager
 def SeggerEmulator(family='UNKNOWN', id=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
@@ -21,18 +24,14 @@ def SeggerEmulator(family='UNKNOWN', id=None):
         api.disconnect_from_emu()
     api.close()
 
+coproc = {'APP': Parameters.CoProcessor.CP_APPLICATION,
+          'NET': Parameters.CoProcessor.CP_NETWORK}
+
 @contextmanager
 def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
     with SeggerEmulator(family, id) as api:
-        if core == 'APP':
-            cpu = Parameters.CoProcessor.CP_APPLICATION
-        elif core == 'NET':
-            cpu = Parameters.CoProcessor.CP_NETWORK
-        else:
-            return None
-
         print(f'[{id}] connecting...')
-        api.select_coprocessor(cpu)
+        api.select_coprocessor(coproc[core])
         api.connect_to_device()
         print(f'[{id}] connected')
 
@@ -40,6 +39,43 @@ def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
 
         api.disconnect_from_device()
         print(f'[{id}] disconnected')
+
+
+class RTTLogger(threading.Thread):
+    def __init__(self, id, family):
+        threading.Thread.__init__(self, daemon=True)
+        self._stop_rx_flag = threading.Event() # Used to cleanly stop the RX thread
+        self.segger_id = id
+        self.family = family
+
+    def run(self):
+        print(f'[{self.segger_id}] RTT start')
+        # TODO: find more idiomatic way of doing this
+        self._stop_rx_flag.clear()
+
+        print(f'[{self.segger_id}] RTT search...')
+        self.api.rtt_start()
+        while not self.api.rtt_is_control_block_found():
+            time.sleep(.01)
+
+        print(f'[{self.segger_id}] RTT opened')
+        while not self._stop_rx_flag.isSet():
+            recv = self.api.rtt_read(0, 1)
+            print(f'[{self.segger_id}] RTT: {recv}')
+
+            # Batch RTT reads
+            time.sleep(.01)
+            # TODO: do something with that data
+
+        print(f'[{self.segger_id}] RTT stop')
+        self.api.rtt_stop()
+
+    def open(self):
+        self.start()
+
+    def close(self):
+        self._stop_rx_flag.set()
+        self.join()
 
 
 class Devkit:
@@ -55,9 +91,14 @@ class Devkit:
         self.log = b''
 
     def start_logging(self):
+        return
+        self.rtt = RTTLogger(self.segger_id, self.family)
+        self.rtt.start()
         print(f'[{self.segger_id}]: start logging')
 
     def stop_logging(self):
+        return
+        self.rtt.close()
         print(f'[{self.segger_id}]: stop logging')
 
     def open(self):
@@ -67,16 +108,31 @@ class Devkit:
         if self.port is None:
             self.port = get_serial_port(self.segger_id)
         # TODO: make jlink API access disable-able from cli
+        return
+        self.api = LowLevel.API(self.family)
+        self.api.open()
+        self.api.connect_to_emu_with_snr(self.segger_id)
+        self.api.select_coprocessor(coproc['APP'])
+        self.api.connect_to_device()
 
     def close(self):
         print(f'[{self.segger_id}]: close')
         self.in_use = False
+        return
+        if self.api is not None:
+            self.api.disconnect_from_device()
+            self.api.disconnect_from_emu()
+            self.api.close()
 
     def available(self):
         return not self.in_use
 
     def reset(self):
         reset(self.segger_id, self.family)
+        return
+        print(f'[{self.segger_id}] self-reset')
+        self.api.debug_reset()
+        print(f'[{self.segger_id}] self-reset ok')
 
 
 def get_serial_port(id):

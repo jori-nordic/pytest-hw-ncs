@@ -52,6 +52,9 @@ def testdevices(flasheddevices):
         devices = {'dut': dut, 'tester': tester}
         print(f'testdevices: {devices}')
 
+        # Start RTT logging
+
         yield devices
 
         print('closing RPC channels')
+

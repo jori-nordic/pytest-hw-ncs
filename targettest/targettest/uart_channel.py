@@ -71,15 +71,10 @@ class UARTChannel(threading.Thread):
         while not self._stop_rx_flag.isSet():
             recv = self._serial.read(self.MAX_RECV_BYTE_COUNT)
 
-            # # TODO: remove ?
-            # if not isinstance(recv, bytearray):
-            #     print(f'serial.read returned {type(recv)}:{recv}')
-            #     continue
-
             # TODO: remove ?
-            # Supposed to help with multiple devices
+            # Supposedly helps with multiple devices
             if recv == b'':
-                time.sleep(0.05)
+                time.sleep(0.01)
                 continue
 
             print(f'RX: {recv.hex(" ")}')
