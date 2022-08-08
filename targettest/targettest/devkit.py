@@ -75,6 +75,9 @@ class Devkit:
     def available(self):
         return not self.in_use
 
+    def reset(self):
+        reset(self.segger_id, self.family)
+
 
 def get_serial_port(id):
     with SeggerEmulator() as api:

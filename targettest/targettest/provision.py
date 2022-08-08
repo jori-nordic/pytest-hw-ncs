@@ -90,3 +90,11 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     print('closing channel')
 
     channel.close()
+
+
+class TestDevice():
+    """Convenience class to group devkit and rpc objects for further usage in
+    the test case."""
+    def __init__(self, devkit: Devkit, rpc: UARTRPCChannel):
+        self.dk = devkit
+        self.rpc = rpc
