@@ -6,6 +6,11 @@ from targettest.devkit import discover_dks
 from targettest.provision import register_dk, FlashedDevice, RPCDevice, TestDevice
 
 
+def pytest_addoption(parser):
+    # Add option to skip the erase/flash cycle
+    parser.addoption("--no-flash", action="store_true")
+
+
 # TODO: have an option to use a static definition instead
 # since looping through the devkits is pretty slow
 @pytest.fixture(scope="session", autouse=True)
@@ -18,9 +23,12 @@ def devkits():
 
 @pytest.fixture(scope="class")
 def flasheddevices(request):
+    no_flash = request.config.getoption("--no-flash")
+
+    # ExitStack is equivalent to multiple nested `with` statements, but is more readable
     with ExitStack() as stack:
-        dut_dk = stack.enter_context(FlashedDevice(request))
-        tester_dk = stack.enter_context(FlashedDevice(request, family='NRF52', board='nrf52840dk_nrf52840'))
+        dut_dk = stack.enter_context(FlashedDevice(request, no_flash=no_flash))
+        tester_dk = stack.enter_context(FlashedDevice(request, family='NRF52', board='nrf52840dk_nrf52840', no_flash=no_flash))
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
 
