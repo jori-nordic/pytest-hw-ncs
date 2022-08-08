@@ -30,8 +30,10 @@ coproc = {'APP': Parameters.CoProcessor.CP_APPLICATION,
 @contextmanager
 def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
     with SeggerEmulator(family, id) as api:
-        print(f'[{id}] connecting...')
-        api.select_coprocessor(coproc[core])
+        cpu = coproc[core]
+        api.select_coprocessor(cpu)
+        print(f'[{id}] [{cpu.name}] connecting...')
+
         api.connect_to_device()
         print(f'[{id}] connected')
 

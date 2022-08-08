@@ -51,6 +51,10 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
         # Flash device with test FW & reset it
         if family == 'NRF53':
             # Flash the network core first
+            #
+            # TODO: There are some shenanigans going on with the readback protection: `west flash
+            # --recover` shows `Writing image to disable ap protect.`, and without this, pynrfjprog
+            # refuses to connect to the network core. Find out what's this about.
             fw_hex = get_fw_path(request, board, child_image_name='hci_rpmsg')
             flash(dev.segger_id, dev.family, fw_hex, core='NET')
 
