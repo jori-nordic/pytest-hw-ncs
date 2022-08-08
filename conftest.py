@@ -1,71 +1,37 @@
 #!/usr/bin/env python3
 
 import pytest
-from contextlib import contextmanager
-from targettest.devkit import (populate_dks,
-                               get_available_dk,
-                               recover,
-                               flash,
-                               reset)
-import pathlib
+from contextlib import contextmanager, ExitStack
+from targettest.devkit import discover_dks
+from targettest.provision import register_dk, FlashedDevice, RPCDevice
 
 
-# Base path of the testing system.
-# Used for locating the binaries to flash for each test.
-BASE_PATH = pathlib.Path.cwd()
-
-
-def get_fw_path(suite, child_image_name=None):
-    """Find the firmware for the test suite"""
-    # TODO: handle netcore
-    test_path = pathlib.Path(
-        getattr(suite.module, "__file__")).parent
-    fw_build = BASE_PATH / 'build' / test_path.relative_to(BASE_PATH)
-
-    if child_image_name is None:
-        fw_hex = fw_build / 'zephyr/zephyr.hex'
-    else:
-        fw_hex = fw_build / child_image_name / 'zephyr/zephyr.hex'
-
-    assert fw_build.exists(), "Missing firmware"
-
-    return fw_hex
-
-
+# TODO: have an option to use a static definition instead
+# since looping through the devkits is pretty slow
 @pytest.fixture(scope="session", autouse=True)
 def devkits():
     print(f'Discovering devices...')
-    populate_dks()
+    devkits = discover_dks()
+    print(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
+    for devkit in devkits:
+        register_dk(devkit)
 
 
-@contextmanager
-def hwdevice(request):
-    family = 'NRF53'
+@pytest.fixture(scope="class")
+def testdevices(request):
+    with ExitStack() as stack:
+        dut_device = stack.enter_context(FlashedDevice(request))
+        tester_device = stack.enter_context(FlashedDevice(request, family='NRF52', board='nrf52840dk_nrf52840'))
 
-    # Select HW device
-    # TODO: add devconf parsing
-    dev = get_available_dk(family)
-    assert dev is not None, f'No {family} devices'
+        print(f'opening DUT rpc {dut_device.segger_id}')
+        dut = stack.enter_context(RPCDevice(dut_device))
 
-    recover(dev.segger_id, family)
+        print(f'opening Tester rpc {tester_device.segger_id}')
+        tester = stack.enter_context(RPCDevice(tester_device))
 
-    # Flash device with test FW & reset it
-    if family == 'NRF53':
-        # Flash the network core first
-        fw_hex = get_fw_path(request, child_image_name='cpunet')
-        flash(dev.segger_id, dev.family, fw_hex, core='NET')
+        devices = {'dut': dut, 'tester': tester}
+        print(f'testdevices: {devices}')
 
-    fw_hex = get_fw_path(request)
-    flash(dev.segger_id, dev.family, fw_hex)
+        yield devices
 
-    reset(dev.segger_id, dev.family)
-
-    # Open device comm channel
-    dev.open()
-    dev.start_logging()
-
-    yield dev
-
-    dev.stop_logging()
-    dev.close()
-
+        print('closing testdevices')

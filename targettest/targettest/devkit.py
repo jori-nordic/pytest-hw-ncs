@@ -1,14 +1,16 @@
-from pynrfjprog import API
+from pynrfjprog import LowLevel
 from pynrfjprog import Parameters
 from contextlib import contextmanager
 
 
-# Don't hold a lock on segger API, in order to allow running tests with a debugger.
+# Don't hold a lock on segger API. This might seem counter-intuitive but it'll
+# help when making an option to not touch the segger DLL at all in order to keep
+# a debugger connected.
 
 @contextmanager
 def SeggerEmulator(family='UNKNOWN', id=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
-    api = API.API(family)
+    api = LowLevel.API(family)
     api.open()
     if id is not None:
         api.connect_to_emu_with_snr(id)
@@ -74,28 +76,6 @@ class Devkit:
         return not self.in_use
 
 
-devkits = []
-def populate_dks():
-    with SeggerEmulator() as api:
-        ids = api.enum_emu_snr()
-        devices = []
-        for id in ids:
-            api.connect_to_emu_with_snr(id)
-            family = api.read_device_family()
-            port = api.enum_emu_com_ports(id)[-1].path
-            devkits.append(
-                Devkit(id, family, f'dk-{family}-{id}', port))
-            api.disconnect_from_emu()
-
-        print(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
-
-
-def get_available_dk(family):
-    for dev in devkits:
-        if dev.available() and dev.family == family:
-            return dev
-    return None
-
 def get_serial_port(id):
     with SeggerEmulator() as api:
         # Will get the last serial port. This is connected to the APP core
@@ -103,8 +83,8 @@ def get_serial_port(id):
         return api.enum_emu_com_ports(id)[-1].path
 
 def recover(id, family):
-    with SeggerDevice(family, id) as api:
-        print('recover')
+    with SeggerEmulator(family, id) as api:
+        print(f'[{id}] recover')
         api.recover()
 
 def flash(id, family, hex_path, core='APP', reset=True):
@@ -125,3 +105,17 @@ def reset(id, family):
         # api.sys_reset()
         # api.hard_reset()
         # api.pin_reset()
+
+def discover_dks():
+    with SeggerEmulator() as api:
+        ids = api.enum_emu_snr()
+        devkits = []
+        for id in ids:
+            api.connect_to_emu_with_snr(id)
+            family = api.read_device_family()
+            port = api.enum_emu_com_ports(id)[-1].path
+            devkits.append(
+                Devkit(id, family, f'dk-{family}-{id}', port))
+            api.disconnect_from_emu()
+
+    return devkits

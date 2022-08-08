@@ -4,6 +4,7 @@ import serial
 import time
 import threading
 import queue
+from contextlib import contextmanager
 from targettest.uart_packet import UARTHeader
 from targettest.rpc_packet import RPCPacket, RPCPacketType
 
@@ -107,12 +108,16 @@ class UARTRPCChannel(UARTChannel):
                  baudrate=1000000,
                  rtscts=True,
                  ignore_timeout=False,
-                 default_packet_handler=None):
+                 default_packet_handler=None,
+                 group_name=None):
 
         super().__init__(port, baudrate, rtscts, ignore_timeout, rx_handler=self.handle_rx)
 
+        print(f'rpc channel init: {port}')
+        self.group_name = group_name
         self.default_packet_handler = default_packet_handler
         self.state = UARTDecodingState()
+
         self.handler_lut = {item.value: {} for item in RPCPacketType}
         self.ready = False
         self.events = queue.Queue()
@@ -180,12 +185,10 @@ class UARTRPCChannel(UARTChannel):
         return None
 
     def send_init(self):
-        # Doesn't use CBOR
-        # Doesn't have the workaround u32 val in the middle
-
+        # Isn't encoded with CBOR
         # Protocol version + RPC group name
         version = b'\x00'
-        payload = b'nrf_sample_test'
+        payload = self.group_name.encode()
         packet = RPCPacket(RPCPacketType.INIT,
                            0, 0, 0xFF, 0, 0xFF,
                            version + payload)
@@ -193,3 +196,5 @@ class UARTRPCChannel(UARTChannel):
         print(f'Send handshake {packet}')
         self.send(packet)
         print('')
+
+

@@ -27,7 +27,7 @@
 LOG_MODULE_REGISTER(rpc_handler, 4);
 
 NRF_RPC_UART_TRANSPORT(test_group_tr, DEVICE_DT_GET(DT_NODELABEL(uart0)));
-NRF_RPC_GROUP_DEFINE(test_group, "nrf_sample_test", &test_group_tr, NULL, NULL, NULL);
+NRF_RPC_GROUP_DEFINE(test_group, "nrf_pytest", &test_group_tr, NULL, NULL, NULL);
 
 /* Sugar, expects an `err` variable in scope. */
 #define ERR_HANDLE(x) if (err || ! x) {err = -EBADMSG;}
