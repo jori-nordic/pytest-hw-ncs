@@ -20,7 +20,16 @@
 
 #include "test_rpc_opcodes.h"
 
-#define CBOR_BUF_SIZE 16
+/* Those should be determined with trial and error, since they determine the
+ * encoded buffer size, and because of the nature of CBOR encoding, the buffer
+ * size entirely depends on the value of the elements and not their type (C
+ * `sizeof` size).
+ *
+ * We use the small one when we only encode a simple error code, and the large
+ * one when we are encoding a bunch of data (e.g. complex events).
+ */
+#define CBOR_BUF_SIZE_SMALL 16
+#define CBOR_BUF_SIZE_LARGE 200
 #define CBOR_MIN_STATES 2
 /* Maximum number of CBOR elements in the payload */
 #define NRF_RPC_MAX_PARAMETERS 255
@@ -48,7 +57,7 @@ static void errcode_rsp(int32_t err)
 {
 	struct nrf_rpc_cbor_ctx ctx;
 
-	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_SMALL);
 
 	zcbor_int32_put(ctx.zs, err);
 
@@ -220,10 +229,47 @@ void evt_ready(void)
 {
 	struct nrf_rpc_cbor_ctx ctx;
 
-	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE);
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_SMALL);
 
 	/* This event doesn't have any data. */
 	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_READY, &ctx);
+}
+
+void evt_scan_report(void)
+{
+	struct nrf_rpc_cbor_ctx ctx;
+	int err = 0;
+
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
+	zcbor_state_t *zs = ctx.zs;
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+	ERR_HANDLE(zcbor_uint32_put(zs, 1337));
+	ERR_HANDLE(zcbor_int32_put(zs, -1234));
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 6));
+
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"hello",
+					 sizeof("hello")));
+	ERR_HANDLE(zcbor_int32_put(zs, -1));
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"from the other",
+					 sizeof("from the other")));
+	ERR_HANDLE(zcbor_uint32_put(zs, 2));
+	ERR_HANDLE(zcbor_uint32_put(zs, 3));
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"side",
+					 sizeof("side")));
+
+	ERR_HANDLE(zcbor_list_end_encode(zs, 6));
+
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_BT_SCAN_REPORT, &ctx);
 }
 
 /* Initialization of the UART transport, and the RPC subsystem. */

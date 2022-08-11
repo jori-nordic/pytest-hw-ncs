@@ -68,5 +68,8 @@ class TestBluetoothNotification():
         print(advertiser)
         print(scanner)
 
+        event = advertiser.rpc.get_evt()
+        print(f'evt: {CBORPayload.read(event.payload).objects}')
+
         time.sleep(5)
         assert False

@@ -17,4 +17,7 @@ void main(void)
 	evt_ready();
 
 	printk("evt_ready sent\n");
+
+	k_msleep(2000);
+	evt_scan_report();
 }
