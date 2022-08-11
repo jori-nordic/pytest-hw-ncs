@@ -1,4 +1,4 @@
-from pynrfjprog import LowLevel
+from pynrfjprog import LowLevel, APIError
 from pynrfjprog import Parameters
 from contextlib import contextmanager
 import threading
@@ -11,12 +11,16 @@ import time
 
 # TODO: add try-except to all contextmanagers
 @contextmanager
-def SeggerEmulator(family='UNKNOWN', id=None):
+def SeggerEmulator(family='UNKNOWN', id=None, core=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
     api = LowLevel.API(family)
     api.open()
     if id is not None:
         api.connect_to_emu_with_snr(id)
+
+    if core is not None:
+        cpu = coproc[core]
+        api.select_coprocessor(cpu)
 
     yield api
 
@@ -27,14 +31,27 @@ def SeggerEmulator(family='UNKNOWN', id=None):
 coproc = {'APP': Parameters.CoProcessor.CP_APPLICATION,
           'NET': Parameters.CoProcessor.CP_NETWORK}
 
+def select_core(api, core):
+    cpu = coproc[core]
+    print(f'[{cpu.name}] select core')
+    api.select_coprocessor(cpu)
+
 @contextmanager
 def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
-    with SeggerEmulator(family, id) as api:
-        cpu = coproc[core]
-        api.select_coprocessor(cpu)
-        print(f'[{id}] [{cpu.name}] connecting...')
+    with SeggerEmulator(family, id, core=core) as api:
+        print(f'[{id}] connecting...')
 
-        api.connect_to_device()
+        try:
+            api.connect_to_device()
+        except APIError.APIError as e:
+            if family != 'NRF52':
+                select_core(api, 'NET')
+                api.recover()
+
+            select_core(api, 'APP')
+            api.recover()
+            select_core(api, core)
+
         print(f'[{id}] connected')
 
         yield api
@@ -146,6 +163,11 @@ def get_serial_port(id):
 def recover(id, family):
     with SeggerEmulator(family, id) as api:
         print(f'[{id}] recover')
+        if family != 'NRF52':
+            select_core(api, 'NET')
+            api.recover()
+
+        select_core(api, 'APP')
         api.recover()
 
 def flash(id, family, hex_path, core='APP', reset=True):
