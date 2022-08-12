@@ -153,6 +153,9 @@ class Devkit:
         self.api.debug_reset()
         print(f'[{self.segger_id}] self-reset ok')
 
+    def halt(self):
+        halt(self.segger_id, self.family)
+
 
 def get_serial_port(id):
     with SeggerEmulator() as api:
@@ -188,6 +191,11 @@ def reset(id, family):
         # api.sys_reset()
         # api.hard_reset()
         # api.pin_reset()
+
+def halt(id, family):
+    with SeggerDevice(family, id) as api:
+        print(f'[{id}] halt')
+        api.halt()
 
 def discover_dks():
     with SeggerEmulator() as api:

@@ -73,10 +73,10 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     # Manage RPC transport
     channel = UARTRPCChannel(port=device.port, group_name=group)
     # Start receiving bytes
+    device.reset()
     channel.start()
     print('Wait for RPC ready')
     # Wait until we have received the handshake/init packet
-    device.reset()
     while not channel.ready:
         time.sleep(.1)
 
@@ -84,12 +84,13 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     # This is a user-defined event, it's not part of the nrf-rpc init sequence.
     event = channel.get_evt()
     assert event.opcode == 0x01
-    print('channel ready')
+    print(f'[{device.port}] channel ready')
 
     yield channel
-    print('closing channel')
+    print(f'[{device.port}] closing channel')
 
     channel.close()
+    device.halt()
 
 
 class TestDevice():

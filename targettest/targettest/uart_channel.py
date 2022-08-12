@@ -37,6 +37,10 @@ class UARTChannel(threading.Thread):
                                      timeout=UARTChannel.DEFAULT_TIMEOUT,
                                      write_timeout=UARTChannel.DEFAULT_WRITE_TIMEOUT)
 
+    def clear_buffers(self):
+        self._serial.reset_input_buffer()
+        self._serial.reset_output_buffer()
+
     def send(self, data, timeout=15):
         data = bytearray(data)
 
@@ -153,6 +157,8 @@ class UARTRPCChannel(UARTChannel):
         # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
+            self.clear_buffers()
+            self.clear_events()
             self.send_init()
             self.remote_gid = packet.gid_src
             assert packet.payload == b'\x00' + self.group_name.encode()
@@ -184,6 +190,10 @@ class UARTRPCChannel(UARTChannel):
             time.sleep(.01)
 
         return self.rsp
+
+    def clear_events(self):
+        while not self.events.empty():
+            self.events.get()
 
     def get_evt(self, opcode=None, timeout=5):
         if opcode is None:

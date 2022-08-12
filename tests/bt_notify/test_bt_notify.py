@@ -57,19 +57,16 @@ def scanner(testdevices):
 
 class TestBluetoothNotification():
 
-    # def test_boot(self, testdevices):
-    #     print(testdevices)
-    #     print("Boot test")
-    #     assert len(testdevices) == 2
+    def test_boot(self, testdevices):
+        print("Boot test")
+        assert len(testdevices) == 2
 
     def test_scan(self, advertiser, scanner):
         print("Test stderr", file=sys.stderr)
         print("Scan test")
-        print(advertiser)
-        print(scanner)
 
-        event = advertiser.rpc.get_evt()
-        print(f'evt: {CBORPayload.read(event.payload).objects}')
+        event = advertiser.rpc.get_evt(timeout=10)
+        assert event is not None
 
-        time.sleep(5)
-        assert False
+        payload = CBORPayload.read(event.payload).objects[0]
+        print(f'evt: {payload}')
