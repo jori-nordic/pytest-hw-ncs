@@ -2,7 +2,7 @@
 import time
 import pathlib
 from contextlib import contextmanager
-from targettest.devkit import Devkit, recover, flash, reset
+from targettest.devkit import Devkit, flash, reset
 from targettest.uart_channel import UARTRPCChannel
 
 

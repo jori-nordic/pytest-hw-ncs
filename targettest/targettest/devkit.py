@@ -39,8 +39,6 @@ def select_core(api, core):
 @contextmanager
 def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
     with SeggerEmulator(family, id, core=core) as api:
-        print(f'[{id}] connecting...')
-
         try:
             api.connect_to_device()
         except APIError.APIError as e:
@@ -181,16 +179,6 @@ def get_serial_port(id):
         # Will get the last serial port. This is connected to the APP core
         # on nRF53 DKs.
         return api.enum_emu_com_ports(id)[-1].path
-
-def recover(id, family):
-    with SeggerEmulator(family, id) as api:
-        print(f'[{id}] recover')
-        if family != 'NRF52':
-            select_core(api, 'NET')
-            api.recover()
-
-        select_core(api, 'APP')
-        api.recover()
 
 def flash(id, family, hex_path, core='APP', reset=True):
     with SeggerDevice(family, id, core) as cpu:
