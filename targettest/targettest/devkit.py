@@ -13,20 +13,22 @@ import time
 @contextmanager
 def SeggerEmulator(family='UNKNOWN', id=None, core=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
-    api = LowLevel.API(family)
-    api.open()
-    if id is not None:
-        api.connect_to_emu_with_snr(id)
+    try:
+        api = LowLevel.API(family)
+        api.open()
+        if id is not None:
+            api.connect_to_emu_with_snr(id)
 
-    if core is not None:
-        cpu = coproc[core]
-        api.select_coprocessor(cpu)
+        if core is not None:
+            cpu = coproc[core]
+            api.select_coprocessor(cpu)
 
-    yield api
+        yield api
 
-    if id is not None:
-        api.disconnect_from_emu()
-    api.close()
+    finally:
+        if id is not None:
+            api.disconnect_from_emu()
+        api.close()
 
 coproc = {'APP': Parameters.CoProcessor.CP_APPLICATION,
           'NET': Parameters.CoProcessor.CP_NETWORK}
