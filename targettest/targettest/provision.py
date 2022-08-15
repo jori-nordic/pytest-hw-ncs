@@ -59,12 +59,9 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
 
     # Open device comm channel
     dev.open()
-    dev.start_logging()
 
     yield dev
 
-    # TODO: flush per-testcase
-    dev.stop_logging()
     dev.close()
 
 
@@ -74,11 +71,18 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     channel = UARTRPCChannel(port=device.port, group_name=group)
     # Start receiving bytes
     device.reset()
+    device.start_logging()
+
     channel.start()
     print('Wait for RPC ready')
     # Wait until we have received the handshake/init packet
+    end_time = time.monotonic() + 5
     while not channel.ready:
         time.sleep(.1)
+        if time.monotonic() > end_time:
+            channel.close()
+            device.stop_logging()
+            raise Exception('Unresponsive device')
 
     # Wait for the READY event (sent from main)
     # This is a user-defined event, it's not part of the nrf-rpc init sequence.
@@ -90,6 +94,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     print(f'[{device.port}] closing channel')
 
     channel.close()
+    device.stop_logging()
     device.halt()
 
 

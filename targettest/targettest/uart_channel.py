@@ -179,15 +179,19 @@ class UARTRPCChannel(UARTChannel):
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
         self.handler_lut[packet_type][opcode] = packet_handler
 
-    def cmd(self, opcode: int, data: bytes=b''):
+    def cmd(self, opcode: int, data: bytes=b'', timeout=5):
         packet = RPCPacket(RPCPacketType.CMD, opcode,
                            src=0, dst=0xFF, gid_src=0, gid_dst=self.remote_gid,
                            payload=data)
         self.rsp = None
 
         super().send(packet.raw)
+
+        end_time = time.monotonic() + timeout
         while self.rsp is None:
             time.sleep(.01)
+            if time.monotonic() > end_time:
+                raise Exception('Command timeout')
 
         return self.rsp
 
