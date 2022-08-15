@@ -106,8 +106,8 @@ class Devkit:
     def __init__(self, id, family, name, port=None, open_emu=True):
         self.open_emu = open_emu
         self.emu = None
-        self.segger_id = id
-        self.family = family
+        self.segger_id = int(id)
+        self.family = family.upper()
         self.port = port
 
         self.name = name
@@ -127,8 +127,12 @@ class Devkit:
 
         self.rtt = RTTLogger(self.emu, self.log_handler)
         self.rtt.start()
+        end_time = time.monotonic() + 5
         while not self.rtt.ready:
             time.sleep(.1)
+            if time.monotonic() > end_time:
+                raise Exception('Unable to start logging')
+
         print(f'[{self.segger_id}]: logging started')
 
     def stop_logging(self):

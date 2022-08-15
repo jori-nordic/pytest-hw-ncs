@@ -12,6 +12,10 @@ def register_dk(device: Devkit):
     devkits.append(device)
 
 def get_available_dk(family, id=None):
+    print(f'devkits: {devkits}')
+    id = int(id)
+    family = family.upper()
+
     for dev in devkits:
         if dev.available() and dev.family == family:
             if id is None:
@@ -42,7 +46,7 @@ def get_fw_path(suite, board, child_image_name=None):
 @contextmanager
 def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', no_flash=False):
     # Select HW device
-    dev = get_available_dk(family)
+    dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'
 
     if not no_flash:
@@ -70,12 +74,12 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     try:
         # Manage RPC transport
         channel = UARTRPCChannel(port=device.port, group_name=group)
+        channel.start()
+        print('Wait for RPC ready')
         # Start receiving bytes
         device.reset()
         device.start_logging()
 
-        channel.start()
-        print('Wait for RPC ready')
         # Wait until we have received the handshake/init packet
         end_time = time.monotonic() + 5
         while not channel.ready:
@@ -93,7 +97,6 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
 
     finally:
         print(f'[{device.port}] closing channel')
-        channel.close()
         device.stop_logging()
         device.halt()
 

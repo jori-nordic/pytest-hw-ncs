@@ -1,0 +1,23 @@
+devices:
+  - name: nrf53-0
+    segger: '960156926'
+    family: nrf53
+
+  - name: nrf52840-0
+    segger: '683498906'
+    family: nrf52
+
+  - name: nrf52840-1
+    segger: '683368905'
+    family: nrf52
+
+configurations:
+  - id: local
+    type: '*_sl'
+    default: true
+
+    dut_nrf53: nrf53-0
+    tester_nrf53: nrf53-0
+
+    dut_nrf52: nrf52840-0
+    tester_nrf52: nrf52840-1
