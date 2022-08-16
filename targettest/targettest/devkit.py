@@ -75,7 +75,8 @@ class RTTLogger(threading.Thread):
 
         print(f'RTT search...')
         self.emu.rtt_start()
-        while not self.emu.rtt_is_control_block_found():
+        while not (self.emu.rtt_is_control_block_found() or
+                   self._stop_rx_flag.isSet()):
             time.sleep(.1)
 
         self.ready = True
