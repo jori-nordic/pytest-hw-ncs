@@ -4,10 +4,12 @@ import serial
 import time
 import threading
 import queue
+import logging
 from contextlib import contextmanager
 from targettest.uart_packet import UARTHeader
 from targettest.rpc_packet import RPCPacket, RPCPacketType
 
+LOGGER = logging.getLogger(__name__)
 
 class UARTChannel(threading.Thread):
     DEFAULT_TIMEOUT = 0.001
@@ -47,7 +49,7 @@ class UARTChannel(threading.Thread):
         byte_count = 0
         start_time = time.monotonic()
 
-        print(f'TX [{self.port}]: {data.hex(" ")}')
+        LOGGER.debug(f'TX [{self.port}] {data.hex(" ")}')
         while data:
             data = data[byte_count:]
 
@@ -63,12 +65,13 @@ class UARTChannel(threading.Thread):
                     raise
 
             if time.monotonic() - start_time > timeout:
-                print(f'Message not sent during required time: {timeout}')
+                LOGGER.error(f'Message not sent during required time: {timeout}')
                 raise TimeoutError
 
         return byte_count
 
     def run(self):
+        LOGGER.debug(f'Start RX [{self.port}]')
         # TODO: find more idiomatic way of doing this
         self._stop_rx_flag.clear()
 
@@ -81,7 +84,7 @@ class UARTChannel(threading.Thread):
                 time.sleep(0.01)
                 continue
 
-            print(f'RX [{self.port}]: {recv.hex(" ")}')
+            LOGGER.debug(f'RX [{self.port}] {recv.hex(" ")}')
 
             self._rx_handler(recv)
 
@@ -112,7 +115,7 @@ class UARTRPCChannel(UARTChannel):
 
         super().__init__(port, baudrate, rtscts, ignore_timeout, rx_handler=self.handle_rx)
 
-        print(f'rpc channel init: {port}')
+        LOGGER.debug(f'rpc channel init: {port}')
         self.group_name = group_name
         self.remote_gid = 0
         self.default_packet_handler = default_packet_handler
@@ -153,7 +156,7 @@ class UARTRPCChannel(UARTChannel):
         return self.handler_lut[packet.packet_type][packet.opcode]
 
     def handler(self, packet: RPCPacket):
-        print(f'rx {packet}')
+        LOGGER.debug(f'Handling {packet}')
         # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
@@ -163,6 +166,7 @@ class UARTRPCChannel(UARTChannel):
             self.remote_gid = packet.gid_src
             assert packet.payload == b'\x00' + self.group_name.encode()
             self.ready = True
+            LOGGER.debug(f'[{self.port}] channel established')
         elif packet.packet_type == RPCPacketType.EVT:
             self.events.put(packet)
         elif packet.packet_type == RPCPacketType.RSP:
@@ -174,7 +178,7 @@ class UARTRPCChannel(UARTChannel):
         elif self.default_packet_handler is not None:
             self.default_packet_handler(self, packet)
         else:
-            print(f'[{self.port}]: unhandled packet {packet}')
+            LOGGER.error(f'[{self.port}] unhandled packet {packet}')
 
     def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
         self.handler_lut[packet_type][opcode] = packet_handler
@@ -216,8 +220,5 @@ class UARTRPCChannel(UARTChannel):
                            0, 0, 0xFF, 0, 0xFF,
                            version + payload)
 
-        print(f'Send handshake {packet}')
+        LOGGER.debug(f'Send handshake {packet}')
         super().send(packet.raw)
-        print('')
-
-

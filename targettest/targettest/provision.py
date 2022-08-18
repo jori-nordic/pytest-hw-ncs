@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 import time
 import pathlib
+import logging
 from contextlib import contextmanager
 from targettest.devkit import Devkit, flash, reset
 from targettest.uart_channel import UARTRPCChannel
 
+LOGGER = logging.getLogger(__name__)
 
 devkits = []
 def register_dk(device: Devkit):
-    print(f'Register DK: {device.segger_id}')
+    LOGGER.debug(f'Register DK: {device.segger_id}')
     devkits.append(device)
 
 def get_available_dk(family, id=None):
-    print(f'devkits: {devkits}')
-    id = int(id)
     family = family.upper()
 
     for dev in devkits:
@@ -21,6 +21,7 @@ def get_available_dk(family, id=None):
             if id is None:
                 return dev
             else:
+                id = int(id)
                 if dev.segger_id == id:
                     return dev
     return None
@@ -44,7 +45,7 @@ def get_fw_path(suite, board, child_image_name=None):
 
 
 @contextmanager
-def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', no_flash=False):
+def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', no_flash=False, no_log=False):
     # Select HW device
     dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'
@@ -62,7 +63,7 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
         reset(dev.segger_id, dev.family)
 
     # Open device comm channel
-    dev.open()
+    dev.open(not no_log)
 
     yield dev
 
@@ -75,7 +76,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
         # Manage RPC transport
         channel = UARTRPCChannel(port=device.port, group_name=group)
         channel.start()
-        print('Wait for RPC ready')
+        LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
         device.reset()
         device.start_logging()
@@ -91,12 +92,12 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
         # This is a user-defined event, it's not part of the nrf-rpc init sequence.
         event = channel.get_evt()
         assert event.opcode == 0x01
-        print(f'[{device.port}] channel ready')
+        LOGGER.info(f'[{device.port}] channel ready')
 
         yield channel
 
     finally:
-        print(f'[{device.port}] closing channel')
+        LOGGER.info(f'[{device.port}] closing channel')
         device.stop_logging()
         device.halt()
 
@@ -107,3 +108,6 @@ class TestDevice():
     def __init__(self, devkit: Devkit, rpc: UARTRPCChannel):
         self.dk = devkit
         self.rpc = rpc
+
+    def __repr__(self):
+        return f'[{self.dk.segger_id}] {self.dk.port}'

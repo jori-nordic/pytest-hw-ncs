@@ -3,8 +3,10 @@ import pytest
 import sys
 import time
 import enum
+import logging
 from targettest.cbor import CBORPayload
 
+LOGGER = logging.getLogger(__name__)
 
 class RPCCommands(enum.IntEnum):
     BT_SCAN = 0x01
@@ -20,24 +22,24 @@ class RPCEvents(enum.IntEnum):
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
-    print("Configure adv")
+    LOGGER.info("Configure adv")
     rsp = rpcdevice.cmd(RPCCommands.BT_ADVERTISE)
-    print(f'rsp: {CBORPayload.read(rsp.payload).objects}')
+    LOGGER.info(f'rsp: {CBORPayload.read(rsp.payload).objects}')
 
-    print("Start conn")
+    LOGGER.info("Start conn")
     conn = [
         [1, bytes([1, 2, 3, 4, 5, 6])],
         [7, 1000, 200, 2000]
     ]
     payload = CBORPayload(conn).encoded
-    print(f'payload: {payload.hex(" ")}')
+    LOGGER.info(f'payload: {payload.hex(" ")}')
     rsp = rpcdevice.cmd(RPCCommands.BT_CONNECT,
                         payload)
-    print(f'rsp: {CBORPayload.read(rsp.payload).objects}')
+    LOGGER.info(f'rsp: {CBORPayload.read(rsp.payload).objects}')
 
 def configure_scanner(rpcdevice):
     # configure & start scanner
-    print("Configure scan")
+    LOGGER.info("Configure scan")
     rpcdevice.cmd(RPCCommands.BT_ADVERTISE)
 
 def init_bluetooth(rpcdevice):
@@ -58,15 +60,14 @@ def scanner(testdevices):
 class TestBluetoothNotification():
 
     def test_boot(self, testdevices):
-        print("Boot test")
+        LOGGER.info("Boot test")
         assert len(testdevices) == 2
 
     def test_scan(self, advertiser, scanner):
-        print("Test stderr", file=sys.stderr)
-        print("Scan test")
+        LOGGER.info("Scan test")
 
         event = advertiser.rpc.get_evt(timeout=10)
         assert event is not None
 
         payload = CBORPayload.read(event.payload).objects[0]
-        print(f'evt: {payload}')
+        LOGGER.info(f'evt: {payload}')

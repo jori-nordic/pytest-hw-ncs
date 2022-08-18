@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 import struct
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 
 class UARTHeader():
@@ -22,10 +25,10 @@ class UARTHeader():
                 return cls(length, crc)
 
         except struct.error:
-            print("Struct error")
+            LOGGER.info("Struct decoding error")
             pass
 
-        print('header unpack failure')
+        LOGGER.warning('header unpack failure')
         return None
 
     @classmethod
@@ -48,16 +51,14 @@ class UARTPacket():
 
     @classmethod
     def unpack(cls, packet: bytes):
-        # print(f'UARTPacket unpack from {packet}')
         # Called on the whole buffer, containing the header too
         header = UARTHeader.unpack(packet)
         packet = packet[header._size:] # Remove the header
         packet = packet[:header.length] # Remove anything after the advertised length
-        # print(f'header {header} raw {packet}')
+        LOGGER.debug(f'header {header} raw {packet}')
 
         if len(packet) < header.length:
-            # TODO raise EOFError ?
-            print('Packet not complete')
+            LOGGER.warning('Packet not complete')
             return None
         else:
             return cls(packet)

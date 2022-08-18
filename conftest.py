@@ -2,9 +2,12 @@
 
 import pytest
 import yaml
+import logging
 from contextlib import ExitStack
 from targettest.devkit import discover_dks, Devkit
 from targettest.provision import register_dk, FlashedDevice, RPCDevice, TestDevice
+
+LOGGER = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser):
@@ -29,9 +32,9 @@ def devkits(request):
     if devconf is not None:
         return
 
-    print(f'Discovering devices...')
+    LOGGER.info(f'Discovering devices...')
     devkits = discover_dks()
-    print(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
+    LOGGER.info(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
     for devkit in devkits:
         register_dk(devkit)
 
@@ -66,7 +69,7 @@ def flasheddevices(request):
     dut_id = None
     tester_id = None
     if devconf is not None:
-        print(f'Using devconf: {devconf}')
+        LOGGER.info(f'Using devconf: {devconf}')
         with open(devconf, 'r') as stream:
             # Assuming only one config per devconf file
             parsed = yaml.safe_load(stream)
@@ -86,7 +89,9 @@ def flasheddevices(request):
         register_dk(Devkit(tester_id, tester_family, tester_name))
         assert tester_id, 'Tester not found in configuration'
 
-        print(f'DUT: {dut_id} Tester: {tester_id}')
+        LOGGER.info(f'DUT: {dut_id} Tester: {tester_id}')
+
+    no_log = True
 
     # ExitStack is equivalent to multiple nested `with` statements, but is more readable
     with ExitStack() as stack:
@@ -95,40 +100,41 @@ def flasheddevices(request):
                           family=dut_family,
                           id=dut_id,
                           board=get_board_by_family(dut_family),
-                          no_flash=no_flash))
+                          no_flash=no_flash,
+                          no_log=no_log))
 
         tester_dk = stack.enter_context(
             FlashedDevice(request,
                           family=tester_family,
                           id=tester_id,
                           board=get_board_by_family('NRF52'),
-                          no_flash=no_flash))
+                          no_flash=no_flash,
+                          no_log=no_log))
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
 
         yield devices
 
-        print('closing DK APIs')
+        LOGGER.debug('closing DK APIs')
 
 @pytest.fixture()
 def testdevices(flasheddevices):
     with ExitStack() as stack:
         dut_dk = flasheddevices['dut_dk']
-        print(f'opening DUT rpc {dut_dk.segger_id}')
+        LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
         dut_rpc = stack.enter_context(RPCDevice(dut_dk))
         dut = TestDevice(dut_dk, dut_rpc)
 
         tester_dk = flasheddevices['tester_dk']
-        print(f'opening Tester rpc {tester_dk.segger_id}')
+        LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
         tester_rpc = stack.enter_context(RPCDevice(tester_dk))
         tester = TestDevice(tester_dk, tester_rpc)
 
         devices = {'dut': dut, 'tester': tester}
-        print(f'testdevices: {devices}')
+        LOGGER.info(f'Test devices: {devices}')
 
         # Start RTT logging
 
         yield devices
 
-        print('closing RPC channels')
-
+        LOGGER.debug('closing RPC channels')

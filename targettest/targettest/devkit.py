@@ -1,9 +1,11 @@
-from pynrfjprog import LowLevel, APIError
-from pynrfjprog import Parameters
-from contextlib import contextmanager
 import threading
 import time
+import logging
+from contextlib import contextmanager
+from pynrfjprog import LowLevel, APIError
+from pynrfjprog import Parameters
 
+LOGGER = logging.getLogger(__name__)
 
 # Don't hold a lock on segger API. This might seem counter-intuitive but it'll
 # help when making an option to not touch the segger DLL at all in order to keep
@@ -35,7 +37,7 @@ coproc = {'APP': Parameters.CoProcessor.CP_APPLICATION,
 
 def select_core(api, core):
     cpu = coproc[core]
-    print(f'[{cpu.name}] select core')
+    LOGGER.debug(f'[{cpu.name}] select core')
     api.select_coprocessor(cpu)
 
 @contextmanager
@@ -52,12 +54,12 @@ def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
             api.recover()
             select_core(api, core)
 
-        print(f'[{id}] connected')
+        LOGGER.debug(f'[{id}] jlink open')
 
         yield api
 
         api.disconnect_from_device()
-        print(f'[{id}] disconnected')
+        LOGGER.debug(f'[{id}] jlink closed')
 
 
 class RTTLogger(threading.Thread):
@@ -69,11 +71,11 @@ class RTTLogger(threading.Thread):
         self.emu = emu
 
     def run(self):
-        print(f'RTT start')
+        LOGGER.debug(f'RTT start')
         # TODO: find more idiomatic way of doing this
         self._stop_rx_flag.clear()
 
-        print(f'RTT search...')
+        LOGGER.debug(f'RTT search...')
         self.emu.rtt_start()
         while not (self.emu.rtt_is_control_block_found() or
                    self._stop_rx_flag.isSet()):
@@ -81,18 +83,17 @@ class RTTLogger(threading.Thread):
 
         self.ready = True
 
-        print(f'RTT opened')
+        LOGGER.debug(f'RTT opened')
         while not self._stop_rx_flag.isSet():
             recv = self.emu.rtt_read(0, 100)
             if len(recv) > 0:
-                # print(f'RTT: {recv}')
                 self.handler(recv)
 
             # Batch RTT reads
             time.sleep(.01)
             # TODO: do something with that data
 
-        print(f'RTT stop')
+        LOGGER.debug(f'RTT stop')
         self.emu.rtt_stop()
 
     def open(self):
@@ -104,8 +105,7 @@ class RTTLogger(threading.Thread):
 
 
 class Devkit:
-    def __init__(self, id, family, name, port=None, open_emu=True):
-        self.open_emu = open_emu
+    def __init__(self, id, family, name, port=None):
         self.emu = None
         self.segger_id = int(id)
         self.family = family.upper()
@@ -128,13 +128,13 @@ class Devkit:
 
         self.rtt = RTTLogger(self.emu, self.log_handler)
         self.rtt.start()
-        end_time = time.monotonic() + 5
+        end_time = time.monotonic() + 15
         while not self.rtt.ready:
             time.sleep(.1)
             if time.monotonic() > end_time:
                 raise Exception('Unable to start logging')
 
-        print(f'[{self.segger_id}]: logging started')
+        LOGGER.debug(f'[{self.segger_id}] logging started')
 
     def stop_logging(self):
         if self.emu is None:
@@ -143,23 +143,23 @@ class Devkit:
         try:
             self.rtt.close()
         finally:
-            print(f'[{self.segger_id}]: logging stopped')
-            print(self.log)
+            LOGGER.debug(f'[{self.segger_id}] logging stopped')
+            LOGGER.info(f'[{self.segger_id}] device logs:\n{self.log}')
 
-    def open(self):
-        print(f'[{self.segger_id}]: open')
+    def open(self, open_emu=True):
+        LOGGER.debug(f'[{self.segger_id}] devkit open')
         self.in_use = True
 
         # Don't try to fetch the port path if supplied
         if self.port is None:
             self.port = get_serial_port(self.segger_id)
 
-        if self.open_emu:
+        if open_emu:
             self.apiobject = SeggerDevice(self.family, self.segger_id)
             self.emu = self.apiobject.__enter__()
 
     def close(self):
-        print(f'[{self.segger_id}]: close')
+        LOGGER.debug(f'[{self.segger_id}] devkit close')
         self.in_use = False
 
         if self.emu is not None:
@@ -170,13 +170,13 @@ class Devkit:
 
     def reset(self):
         if self.emu is None:
-            print(f'[{segger_id}]: skipping reset')
+            LOGGER.debug(f'[{self.segger_id}] skipping reset')
             return
         reset(self.segger_id, self.family, self.emu)
 
     def halt(self):
         if self.emu is None:
-            print(f'[{segger_id}]: skipping halt')
+            LOGGER.debug(f'[{self.segger_id}] skipping halt')
             return
         halt(self.segger_id, self.family, self.emu)
 
@@ -189,7 +189,7 @@ def get_serial_port(id):
 
 def flash(id, family, hex_path, core='APP', reset=True):
     with SeggerDevice(family, id, core) as cpu:
-        print(f'[{id}] [{family}-{core}] Flashing with {str(hex_path)}')
+        LOGGER.info(f'[{id}] [{family}-{core}] Flashing with {str(hex_path)}')
         # Erase the target's flash
         cpu.erase_file(hex_path)
 
@@ -198,20 +198,23 @@ def flash(id, family, hex_path, core='APP', reset=True):
         cpu.verify_file(hex_path)
 
 def reset(id, family, emu=None):
-    print(f'[{id}] reset')
     if emu is not None:
+        LOGGER.info(f'[{id}] reset')
         emu.debug_reset()
+        emu.pin_reset()
     else:
         # TODO: check if this doesn't disturb Ozone
         with SeggerDevice(family, id) as emu:
+            LOGGER.info(f'[{id}] reset')
             emu.debug_reset()
+            emu.pin_reset()
             # Other ways to reset the device:
             # emu.sys_reset()
             # emu.hard_reset()
             # emu.pin_reset()
 
 def halt(id, family, emu=None):
-    print(f'[{id}] halt')
+    LOGGER.info(f'[{id}] halt')
     if emu is not None:
         emu.halt()
     else:
