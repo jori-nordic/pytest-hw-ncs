@@ -144,7 +144,6 @@ class Devkit:
             self.rtt.close()
         finally:
             LOGGER.debug(f'[{self.segger_id}] logging stopped')
-            LOGGER.info(f'[{self.segger_id}] device logs:\n{self.log}')
 
     def open(self, open_emu=True):
         LOGGER.debug(f'[{self.segger_id}] devkit open')

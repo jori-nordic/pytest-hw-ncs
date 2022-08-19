@@ -133,8 +133,9 @@ def testdevices(flasheddevices):
         devices = {'dut': dut, 'tester': tester}
         LOGGER.info(f'Test devices: {devices}')
 
-        # Start RTT logging
-
         yield devices
+
+        LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
+        LOGGER.info(f'[{tester_dk.segger_id}] Tester logs:\n{tester_dk.log}')
 
         LOGGER.debug('closing RPC channels')
