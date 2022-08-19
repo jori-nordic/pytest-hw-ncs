@@ -50,6 +50,9 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
     dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'
 
+    if family is not None:
+        family = family.upper()
+
     if not no_flash:
         # Flash device with test FW & reset it
         if family == 'NRF53':

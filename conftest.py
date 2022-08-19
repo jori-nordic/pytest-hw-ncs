@@ -45,8 +45,8 @@ def get_device_by_name(devices, name):
 
     return None
 
-def get_board_by_family(family):
-    if family == 'NRF52':
+def get_board_by_family(family: str):
+    if family.upper() == 'NRF52':
         return 'nrf52840dk_nrf52840'
     else:
         return 'nrf5340dk_nrf5340_cpuapp'
@@ -107,7 +107,7 @@ def flasheddevices(request):
             FlashedDevice(request,
                           family=tester_family,
                           id=tester_id,
-                          board=get_board_by_family('NRF52'),
+                          board=get_board_by_family(tester_family),
                           no_flash=no_flash,
                           no_log=no_log))
 
