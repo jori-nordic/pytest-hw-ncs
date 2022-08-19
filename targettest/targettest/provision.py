@@ -45,7 +45,7 @@ def get_fw_path(suite, board, child_image_name=None):
 
 
 @contextmanager
-def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', name=None, flash=True, emu=True):
+def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', name=None, flash_device=True, emu=True):
     # Select HW device
     dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'
@@ -56,7 +56,7 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
     if name is not None:
         dev.name = name
 
-    if flash:
+    if flash_device:
         # Flash device with test FW & reset it
         if family == 'NRF53':
             # Flash the network core first

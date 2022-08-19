@@ -108,7 +108,7 @@ def flasheddevices(request):
                           family=dut_family,
                           id=dut_id,
                           board=get_board_by_family(dut_family),
-                          flash=flash,
+                          flash_device=flash,
                           emu=emu))
 
         tester_dk = stack.enter_context(
@@ -117,7 +117,7 @@ def flasheddevices(request):
                           family=tester_family,
                           id=tester_id,
                           board=get_board_by_family(tester_family),
-                          flash=flash,
+                          flash_device=flash,
                           emu=emu))
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
