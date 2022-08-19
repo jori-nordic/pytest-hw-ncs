@@ -11,8 +11,16 @@ LOGGER = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser):
+    # TODO: add proper option help text
     # Skip the erase/flash cycle
     parser.addoption("--no-flash", action="store_true")
+
+    # Don't connect to jlink emulator:
+    # allows running a test with a debugger connected, e.g. Ozone
+    #
+    # Note: has to be called with `-s` option so the test session can prompt the
+    # user to reset the device(s) manually.
+    parser.addoption("--no-emu", action="store_true")
 
     # Use a specific device configuration
     # See sample_devconf.yaml
@@ -53,7 +61,8 @@ def get_board_by_family(family: str):
 
 @pytest.fixture(scope="class")
 def flasheddevices(request):
-    no_flash = request.config.getoption("--no-flash")
+    flash = not request.config.getoption("--no-flash")
+    emu = not request.config.getoption("--no-emu")
     devconf = request.config.getoption("--devconf")
     dut_family = request.config.getoption("--dut-family")
     tester_family = request.config.getoption("--tester-family")
@@ -91,8 +100,6 @@ def flasheddevices(request):
 
         LOGGER.info(f'DUT: {dut_id} Tester: {tester_id}')
 
-    no_log = True
-
     # ExitStack is equivalent to multiple nested `with` statements, but is more readable
     with ExitStack() as stack:
         dut_dk = stack.enter_context(
@@ -100,16 +107,16 @@ def flasheddevices(request):
                           family=dut_family,
                           id=dut_id,
                           board=get_board_by_family(dut_family),
-                          no_flash=no_flash,
-                          no_log=no_log))
+                          flash=flash,
+                          emu=emu))
 
         tester_dk = stack.enter_context(
             FlashedDevice(request,
                           family=tester_family,
                           id=tester_id,
                           board=get_board_by_family(tester_family),
-                          no_flash=no_flash,
-                          no_log=no_log))
+                          flash=flash,
+                          emu=emu))
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
 

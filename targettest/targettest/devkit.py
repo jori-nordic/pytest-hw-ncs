@@ -124,6 +124,7 @@ class Devkit:
 
     def start_logging(self):
         if self.emu is None:
+            LOGGER.debug(f'[{self.segger_id}] skipping log setup')
             return
 
         self.rtt = RTTLogger(self.emu, self.log_handler)
@@ -138,6 +139,7 @@ class Devkit:
 
     def stop_logging(self):
         if self.emu is None:
+            LOGGER.debug(f'[{self.segger_id}] skipping log teardown')
             return
 
         try:
@@ -145,7 +147,7 @@ class Devkit:
         finally:
             LOGGER.debug(f'[{self.segger_id}] logging stopped')
 
-    def open(self, open_emu=True):
+    def open(self, open_emu):
         LOGGER.debug(f'[{self.segger_id}] devkit open')
         self.in_use = True
 
@@ -169,15 +171,16 @@ class Devkit:
 
     def reset(self):
         if self.emu is None:
-            LOGGER.debug(f'[{self.segger_id}] skipping reset')
-            return
-        reset(self.segger_id, self.family, self.emu)
+            LOGGER.info(f'[{self.segger_id}] interactive reset')
+            input(f'\nReset device [{self.segger_id}] and press enter')
+        else:
+            reset(self.segger_id, self.family, self.emu)
 
     def halt(self):
         if self.emu is None:
-            LOGGER.debug(f'[{self.segger_id}] skipping halt')
-            return
-        halt(self.segger_id, self.family, self.emu)
+            LOGGER.info(f'[{self.segger_id}] skipping halt')
+        else:
+            halt(self.segger_id, self.family, self.emu)
 
 
 def get_serial_port(id):
