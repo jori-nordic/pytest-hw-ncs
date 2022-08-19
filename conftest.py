@@ -129,22 +129,25 @@ def flasheddevices(request):
 @pytest.fixture()
 def testdevices(flasheddevices):
     with ExitStack() as stack:
-        dut_dk = flasheddevices['dut_dk']
-        LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
-        dut_rpc = stack.enter_context(RPCDevice(dut_dk))
-        dut = TestDevice(dut_dk, dut_rpc)
+        try:
+            dut_dk = flasheddevices['dut_dk']
+            tester_dk = flasheddevices['tester_dk']
 
-        tester_dk = flasheddevices['tester_dk']
-        LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
-        tester_rpc = stack.enter_context(RPCDevice(tester_dk))
-        tester = TestDevice(tester_dk, tester_rpc)
+            LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
+            dut_rpc = stack.enter_context(RPCDevice(dut_dk))
+            dut = TestDevice(dut_dk, dut_rpc)
 
-        devices = {'dut': dut, 'tester': tester}
-        LOGGER.info(f'Test devices: {devices}')
+            LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
+            tester_rpc = stack.enter_context(RPCDevice(tester_dk))
+            tester = TestDevice(tester_dk, tester_rpc)
 
-        yield devices
+            devices = {'dut': dut, 'tester': tester}
+            LOGGER.info(f'Test devices: {devices}')
 
-        LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
-        LOGGER.info(f'[{tester_dk.segger_id}] Tester logs:\n{tester_dk.log}')
+            yield devices
 
-        LOGGER.debug('closing RPC channels')
+        finally:
+            LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
+            LOGGER.info(f'[{tester_dk.segger_id}] Tester logs:\n{tester_dk.log}')
+
+            LOGGER.debug('closing RPC channels')
