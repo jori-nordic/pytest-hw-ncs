@@ -200,18 +200,18 @@ def flash(id, family, hex_path, core='APP', reset=True):
 def reset(id, family, emu=None):
     if emu is not None:
         LOGGER.info(f'[{id}] reset')
-        emu.debug_reset()
+        # emu.debug_reset()
         emu.pin_reset()
     else:
         # TODO: check if this doesn't disturb Ozone
         with SeggerDevice(family, id) as emu:
             LOGGER.info(f'[{id}] reset')
-            emu.debug_reset()
+            # emu.debug_reset()
             emu.pin_reset()
             # Other ways to reset the device:
+            # emu.debug_reset()
             # emu.sys_reset()
             # emu.hard_reset()
-            # emu.pin_reset()
 
 def halt(id, family, emu=None):
     LOGGER.info(f'[{id}] halt')
