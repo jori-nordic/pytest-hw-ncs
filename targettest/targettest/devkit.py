@@ -117,7 +117,7 @@ class Devkit:
         self.log = ''
 
     def __repr__(self):
-        return f'[{self.segger_id}] {self.port}'
+        return f'{self.name}: {self.segger_id} {self.port} '
 
     def log_handler(self, rx: str):
         self.log += rx

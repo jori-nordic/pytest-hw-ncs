@@ -104,6 +104,7 @@ def flasheddevices(request):
     with ExitStack() as stack:
         dut_dk = stack.enter_context(
             FlashedDevice(request,
+                          name='DUT',
                           family=dut_family,
                           id=dut_id,
                           board=get_board_by_family(dut_family),
@@ -112,6 +113,7 @@ def flasheddevices(request):
 
         tester_dk = stack.enter_context(
             FlashedDevice(request,
+                          name='Tester',
                           family=tester_family,
                           id=tester_id,
                           board=get_board_by_family(tester_family),
