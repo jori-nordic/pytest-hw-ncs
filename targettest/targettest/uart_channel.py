@@ -88,7 +88,7 @@ class UARTChannel(threading.Thread):
 
             self._rx_handler(recv)
 
-    def close(self):
+    def stop(self):
         self._stop_rx_flag.set()
         self.join()
         self._serial.close()
@@ -122,7 +122,7 @@ class UARTRPCChannel(UARTChannel):
         self.state = UARTDecodingState()
 
         self.handler_lut = {item.value: {} for item in RPCPacketType}
-        self.ready = False
+        self.established = False
         self.events = queue.Queue()
 
     def handle_rx(self, data: bytes):
@@ -160,12 +160,16 @@ class UARTRPCChannel(UARTChannel):
         # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
+            # Check the INIT packet is for the test system
+            assert packet.payload == b'\x00' + self.group_name.encode()
+            self.remote_gid = packet.gid_src
+
             self.clear_buffers()
             self.clear_events()
+
+            # Mark channel as usable and send INIT response
             self.send_init()
-            self.remote_gid = packet.gid_src
-            assert packet.payload == b'\x00' + self.group_name.encode()
-            self.ready = True
+            self.established = True
             LOGGER.debug(f'[{self.port}] channel established')
         elif packet.packet_type == RPCPacketType.EVT:
             self.events.put(packet)

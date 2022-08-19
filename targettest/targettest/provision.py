@@ -86,8 +86,8 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
 
         # Wait until we have received the handshake/init packet
         end_time = time.monotonic() + 5
-        while not channel.ready:
-            time.sleep(.1)
+        while not channel.established:
+            time.sleep(.01)
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
@@ -101,6 +101,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
 
     finally:
         LOGGER.info(f'[{device.port}] closing channel')
+        channel.stop()
         device.stop_logging()
         device.halt()
 
