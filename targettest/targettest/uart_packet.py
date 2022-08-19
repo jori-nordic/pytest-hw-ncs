@@ -28,7 +28,7 @@ class UARTHeader():
             LOGGER.info("Struct decoding error")
             pass
 
-        LOGGER.warning('header unpack failure')
+        LOGGER.debug('invalid header')
         return None
 
     @classmethod

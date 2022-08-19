@@ -101,7 +101,9 @@ class UARTDecodingState():
     def reset(self):
         self.rx_buf = b''
         self.header = None
-        self.building = False
+
+    def __repr__(self):
+        return f'{self.header} buf {self.rx_buf.hex(" ")}'
 
 
 class UARTRPCChannel(UARTChannel):
@@ -128,14 +130,19 @@ class UARTRPCChannel(UARTChannel):
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
         data = self.state.rx_buf + data
+        # Save the current data in case decoding is not complete
+        self.state.rx_buf = data
 
-        if not self.state.building and len(data) >= UARTHeader._size:
+        if self.state.header is None and len(data) >= UARTHeader._size:
             # Attempt to decode the header
             self.state.header = UARTHeader.unpack(data)
-        else:
-            self.state.building = False
 
-        if self.state.header is not None:
+        if self.state.header is None:
+            # Header failed to decode, eat one byte and try again
+            self.state.rx_buf = self.state.rx_buf[1:]
+            if len(data) >= UARTHeader._size:
+                self.handle_rx(b'')
+        else:
             # Header has been decoded
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
