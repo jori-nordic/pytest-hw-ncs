@@ -24,9 +24,4 @@ void main(void)
 	evt_ready();
 
 	printk("evt_ready sent\n");
-
-	/* TODO: use an actual scan report */
-	k_msleep(2000);
-	evt_scan_report();
-	printk("evt_scan_report sent\n");
 }

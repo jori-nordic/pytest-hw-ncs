@@ -46,24 +46,12 @@ NRF_RPC_GROUP_DEFINE(test_group, "nrf_pytest", &test_group_tr, NULL, NULL, NULL)
 	if (!err) {							\
 		if (! x) {						\
 			err = -EBADMSG;					\
-			LOG_ERR("decoding failed");			\
+			LOG_ERR("en/de-coding fail");			\
 		} else {						\
-			LOG_DBG("decoding ok");}			\
+			LOG_DBG("en/de-coding ok");}			\
 	} else {							\
-		LOG_DBG("failure decoding previous element");		\
+		LOG_ERR("failure en/de-coding previous element");	\
 	};
-
-static void errcode_rsp(int32_t err)
-{
-	struct nrf_rpc_cbor_ctx ctx;
-
-	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_SMALL);
-
-	zcbor_int32_put(ctx.zs, err);
-
-	LOG_INF("send retcode %d", err);
-	nrf_rpc_cbor_rsp_no_err(&test_group, &ctx);
-}
 
 static bool decode_uint(zcbor_state_t *zs,
 			void *dest,
@@ -126,6 +114,55 @@ static bool decode_addr(zcbor_state_t *zs,
 	} else {
 		return true;
 	}
+}
+
+void evt_ready(void)
+{
+	struct nrf_rpc_cbor_ctx ctx;
+
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_SMALL);
+
+	/* This event doesn't have any data. */
+	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_READY, &ctx);
+}
+
+void evt_nested_list(void)
+{
+	struct nrf_rpc_cbor_ctx ctx;
+	int err = 0;
+
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
+	zcbor_state_t *zs = ctx.zs;
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+	ERR_HANDLE(zcbor_uint32_put(zs, 1337));
+	ERR_HANDLE(zcbor_int32_put(zs, -1234));
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	ERR_HANDLE(zcbor_list_start_encode(zs, 6));
+
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"hello",
+					 sizeof("hello")));
+	ERR_HANDLE(zcbor_int32_put(zs, -1));
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"from the other",
+					 sizeof("from the other")));
+	ERR_HANDLE(zcbor_uint32_put(zs, 2));
+	ERR_HANDLE(zcbor_uint32_put(zs, 3));
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)"side",
+					 sizeof("side")));
+
+	ERR_HANDLE(zcbor_list_end_encode(zs, 6));
+
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_DEMO_NESTED_LIST, &ctx);
+
+	printk("Sent demo event\n");
 }
 
 static void handler_connect(const struct nrf_rpc_group *group,
@@ -199,10 +236,13 @@ static void handler_connect(const struct nrf_rpc_group *group,
 	} else {
 		LOG_ERR("%s: parsing error", __func__);
 	}
-
-	/* Encode the errcode and send it to the other side. */
-	errcode_rsp(err);
 }
+
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_connect, RPC_ASYNC_BT_CONNECT, handler_connect, NULL);
+
+static const struct bt_data ad[] = {
+	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR))
+};
 
 static void handler_advertise(const struct nrf_rpc_group *group,
 			    struct nrf_rpc_cbor_ctx *ctx,
@@ -213,65 +253,75 @@ static void handler_advertise(const struct nrf_rpc_group *group,
 	/* Free the RPC workqueue (and the RX buffer) */
 	nrf_rpc_cbor_decoding_done(group, ctx);
 
-	LOG_INF("start advertising");
+	int err = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
+	LOG_INF("bt_le_adv_start: %d", err);
 
-	/* Encode the errcode and send it to the other side. */
-	errcode_rsp(0);
+	evt_nested_list();
 }
 
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_advertise, RPC_ASYNC_BT_ADVERTISE, handler_advertise, NULL);
 
-/* Command handlers for the test suite. Sent from python on the PC and received over UART. */
-NRF_RPC_CBOR_CMD_DECODER(test_group, test_bt_advertise, RPC_COMMAND_BT_ADVERTISE, handler_advertise, NULL);
-NRF_RPC_CBOR_CMD_DECODER(test_group, test_bt_connect, RPC_COMMAND_BT_CONNECT, handler_connect, NULL);
-/* NRF_RPC_CBOR_CMD_DECODER(test_group, test_bt_disconnect, RPC_COMMAND_BT_DISCONNECT, handler_disconnect, NULL); */
-/* NRF_RPC_CBOR_CMD_DECODER(test_group, test_bt_notify, RPC_COMMAND_BT_NOTIFY, handler_notify, NULL); */
-
-void evt_ready(void)
+static void device_found(const bt_addr_le_t *addr,
+			 int8_t rssi,
+			 uint8_t type,
+			 struct net_buf_simple *ad)
 {
-	struct nrf_rpc_cbor_ctx ctx;
+	char dev[BT_ADDR_LE_STR_LEN];
 
-	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_SMALL);
+	bt_addr_le_to_str(addr, dev, sizeof(dev));
+	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i\n",
+		dev, type, ad->len, rssi);
 
-	/* This event doesn't have any data. */
-	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_READY, &ctx);
+	if (type == BT_GAP_ADV_TYPE_ADV_IND ) {
+		struct nrf_rpc_cbor_ctx ctx;
+		int err = 0;
+		NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
+		zcbor_state_t *zs = ctx.zs;
+
+		/* address, type, length, rssi */
+		ERR_HANDLE(zcbor_list_start_encode(zs, 4));
+
+		/* address */
+		ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+		ERR_HANDLE(zcbor_uint32_put(zs, addr->type));
+		ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+						 (const uint8_t *)(addr->a.val),
+						 sizeof(addr->a.val)));
+		ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+		ERR_HANDLE(zcbor_uint32_put(zs, type));
+		ERR_HANDLE(zcbor_uint32_put(zs, ad->len));
+		ERR_HANDLE(zcbor_int32_put(zs, rssi));
+
+		ERR_HANDLE(zcbor_list_end_encode(zs, 4));
+
+		nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_BT_SCAN_REPORT, &ctx);
+	}
 }
 
-void evt_scan_report(void)
+static void handler_scan(const struct nrf_rpc_group *group,
+			 struct nrf_rpc_cbor_ctx *ctx,
+			 void *handler_data)
 {
-	struct nrf_rpc_cbor_ctx ctx;
-	int err = 0;
+	LOG_DBG("");
 
-	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
-	zcbor_state_t *zs = ctx.zs;
+	/* Free the RPC workqueue (and the RX buffer) */
+	nrf_rpc_cbor_decoding_done(group, ctx);
 
-	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+	/* Use active scanning and disable duplicate filtering to handle any
+	 * devices that might update their advertising data at runtime. */
+	struct bt_le_scan_param scan_param = {
+		.type       = BT_LE_SCAN_TYPE_ACTIVE,
+		.options    = BT_LE_SCAN_OPT_NONE,
+		.interval   = BT_GAP_SCAN_FAST_INTERVAL,
+		.window     = BT_GAP_SCAN_FAST_WINDOW,
+	};
 
-	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
-	ERR_HANDLE(zcbor_uint32_put(zs, 1337));
-	ERR_HANDLE(zcbor_int32_put(zs, -1234));
-	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
-
-	ERR_HANDLE(zcbor_list_start_encode(zs, 6));
-
-	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
-					 (const uint8_t *)"hello",
-					 sizeof("hello")));
-	ERR_HANDLE(zcbor_int32_put(zs, -1));
-	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
-					 (const uint8_t *)"from the other",
-					 sizeof("from the other")));
-	ERR_HANDLE(zcbor_uint32_put(zs, 2));
-	ERR_HANDLE(zcbor_uint32_put(zs, 3));
-	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
-					 (const uint8_t *)"side",
-					 sizeof("side")));
-
-	ERR_HANDLE(zcbor_list_end_encode(zs, 6));
-
-	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
-
-	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_BT_SCAN_REPORT, &ctx);
+	int err = bt_le_scan_start(&scan_param, device_found);
+	LOG_INF("bt_le_scan_start: %d", err);
 }
+
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan, RPC_ASYNC_BT_SCAN, handler_scan, NULL);
 
 /* Initialization of the UART transport, and the RPC subsystem. */
 static void err_handler(const struct nrf_rpc_err_report *report)
