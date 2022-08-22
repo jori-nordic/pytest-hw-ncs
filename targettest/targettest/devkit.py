@@ -14,7 +14,7 @@ def SeggerEmulator(family='UNKNOWN', id=None, core=None):
         api = LowLevel.API(family)
         api.open()
         if id is not None:
-            api.connect_to_emu_with_snr(id)
+            api.connect_to_emu_with_snr(id, 4000)
 
         if core is not None:
             cpu = coproc[core]
