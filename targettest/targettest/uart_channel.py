@@ -181,7 +181,8 @@ class UARTRPCChannel(UARTChannel):
 
     def cmd(self, opcode: int, data: bytes=b'', timeout=5):
         packet = RPCPacket(RPCPacketType.CMD, opcode,
-                           src=0, dst=0xFF, gid_src=0, gid_dst=self.remote_gid,
+                           src=0, dst=0xFF,
+                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
                            payload=data)
         self.rsp = None
 
@@ -223,7 +224,7 @@ class UARTRPCChannel(UARTChannel):
         version = b'\x00'
         payload = self.group_name.encode()
         packet = RPCPacket(RPCPacketType.INIT,
-                           0, 0, 0xFF, 0, 0xFF,
+                           0, 0, 0xFF, self.remote_gid, self.remote_gid,
                            version + payload)
 
         LOGGER.debug(f'Send handshake {packet}')
