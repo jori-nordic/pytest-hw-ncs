@@ -8,6 +8,7 @@ import logging
 from contextlib import contextmanager
 from targettest.uart_packet import UARTHeader
 from targettest.rpc_packet import RPCPacket, RPCPacketType
+from targettest.cbor import CBORPayload
 
 LOGGER = logging.getLogger(__name__)
 
@@ -193,6 +194,17 @@ class UARTRPCChannel(UARTChannel):
                 raise Exception('Command timeout')
 
         return self.rsp
+
+    def cmd_cbor(self, opcode: int, data=None, timeout=5):
+        if data is not None:
+            payload = CBORPayload(data).encoded
+            LOGGER.debug(f'cmd(hex): {payload.hex(" ")}')
+            rsp = self.cmd(opcode, payload)
+        else:
+            rsp = self.cmd(opcode)
+
+        LOGGER.debug(f'rsp(hex): {rsp.payload.hex(" ")}')
+        return CBORPayload.read(rsp.payload).objects
 
     def clear_events(self):
         while not self.events.empty():

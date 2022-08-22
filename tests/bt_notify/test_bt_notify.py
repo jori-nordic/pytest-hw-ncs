@@ -23,19 +23,16 @@ class RPCEvents(enum.IntEnum):
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
     LOGGER.info("Configure adv")
-    rsp = rpcdevice.cmd(RPCCommands.BT_ADVERTISE)
-    LOGGER.info(f'rsp: {CBORPayload.read(rsp.payload).objects}')
+    rsp = rpcdevice.cmd_cbor(RPCCommands.BT_ADVERTISE)
+    LOGGER.info(f'rsp: {rsp}')
 
     LOGGER.info("Start conn")
-    conn = [
+    cfg = [
         [1, bytes([1, 2, 3, 4, 5, 6])],
         [7, 1000, 200, 2000]
     ]
-    payload = CBORPayload(conn).encoded
-    LOGGER.info(f'payload: {payload.hex(" ")}')
-    rsp = rpcdevice.cmd(RPCCommands.BT_CONNECT,
-                        payload)
-    LOGGER.info(f'rsp: {CBORPayload.read(rsp.payload).objects}')
+    rsp = rpcdevice.cmd_cbor(RPCCommands.BT_CONNECT, cfg)
+    LOGGER.info(f'rsp: {rsp}')
 
 def configure_scanner(rpcdevice):
     # configure & start scanner
