@@ -36,7 +36,7 @@
 
 #include <logging/log.h>
 
-LOG_MODULE_REGISTER(rpc_handler, 4);
+LOG_MODULE_REGISTER(rpc_handler, 3);
 
 NRF_RPC_UART_TRANSPORT(test_group_tr, DEVICE_DT_GET(DT_NODELABEL(uart0)));
 NRF_RPC_GROUP_DEFINE(test_group, "nrf_pytest", &test_group_tr, NULL, NULL, NULL);
@@ -61,6 +61,7 @@ static void errcode_rsp(int32_t err)
 
 	zcbor_int32_put(ctx.zs, err);
 
+	LOG_INF("send retcode %d", err);
 	nrf_rpc_cbor_rsp_no_err(&test_group, &ctx);
 }
 
@@ -163,7 +164,7 @@ static void handler_connect(const struct nrf_rpc_group *group,
 	if (!err) {
 		char addr_str[BT_ADDR_LE_STR_LEN] = {0};
 		bt_addr_le_to_str(&peer, addr_str, BT_ADDR_LE_STR_LEN);
-		LOG_DBG("decoded addr: %s", addr_str);
+		LOG_INF("decoded addr: %s", addr_str);
 	}
 
 	/* Connection parameters */
@@ -175,7 +176,7 @@ static void handler_connect(const struct nrf_rpc_group *group,
 	ERR_HANDLE(decode_uint(zs, &timeout, sizeof(timeout)));
 
 	if (!err) {
-		LOG_DBG("options %x interval %d window %d timeout %d",
+		LOG_INF("options %x interval %d window %d timeout %d",
 			options, interval, window, timeout);
 	}
 
@@ -194,7 +195,7 @@ static void handler_connect(const struct nrf_rpc_group *group,
 		/* Place decoded items into the target structs, and call
 		 * `bt_conn_le_create`.
 		 */
-		LOG_DBG("bt_conn_le_create (%d)", err);
+		LOG_INF("bt_conn_le_create (%d)", err);
 	} else {
 		LOG_ERR("%s: parsing error", __func__);
 	}
@@ -212,7 +213,7 @@ static void handler_advertise(const struct nrf_rpc_group *group,
 	/* Free the RPC workqueue (and the RX buffer) */
 	nrf_rpc_cbor_decoding_done(group, ctx);
 
-	LOG_DBG("start advertising");
+	LOG_INF("start advertising");
 
 	/* Encode the errcode and send it to the other side. */
 	errcode_rsp(0);
