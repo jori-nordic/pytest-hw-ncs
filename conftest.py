@@ -11,26 +11,23 @@ LOGGER = logging.getLogger(__name__)
 
 
 def pytest_addoption(parser):
-    # TODO: add proper option help text
-    # Skip the erase/flash cycle
-    parser.addoption("--no-flash", action="store_true")
+    parser.addoption("--no-flash", action="store_true",
+                     help='Skip the erase/flash cycle')
 
-    # Don't connect to jlink emulator:
-    # allows running a test with a debugger connected, e.g. Ozone
-    #
     # Note: has to be called with `-s` option so the test session can prompt the
     # user to reset the device(s) manually.
-    parser.addoption("--no-emu", action="store_true")
+    parser.addoption("--no-emu", action="store_true",
+                     help='Don\'t connect to jlink emulator, has to be called with `-s`. \
+This allows the use of a debugger during the test run.')
 
-    # Use a specific device configuration
-    # See sample_devconf.yaml
-    parser.addoption("--devconf", action="store")
+    parser.addoption("--devconf", action="store",
+                     help='Use a static device configuration (see sample_devconf.yml)')
 
-    # Specify either nrf52 or nrf53 DUT families
-    parser.addoption("--dut-family", action="store")
+    parser.addoption("--dut-family", action="store",
+                     help='specify a device (nrf52, nrf53) family for the DUT.')
 
-    # Specify either nrf52 or nrf53 DUT families
-    parser.addoption("--tester-family", action="store")
+    parser.addoption("--tester-family", action="store",
+                     help='specify a device (nrf52, nrf53) family for the Tester.')
 
 
 @pytest.fixture(scope="session", autouse=True)
