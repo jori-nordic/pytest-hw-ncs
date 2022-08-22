@@ -7,11 +7,6 @@ from pynrfjprog import Parameters
 
 LOGGER = logging.getLogger(__name__)
 
-# Don't hold a lock on segger API. This might seem counter-intuitive but it'll
-# help when making an option to not touch the segger DLL at all in order to keep
-# a debugger connected.
-
-# TODO: add try-except to all contextmanagers
 @contextmanager
 def SeggerEmulator(family='UNKNOWN', id=None, core=None):
     """Instantiate the pynrfjprog API and optionally connect to a device."""
@@ -72,7 +67,6 @@ class RTTLogger(threading.Thread):
 
     def run(self):
         LOGGER.debug(f'RTT start')
-        # TODO: find more idiomatic way of doing this
         self._stop_rx_flag.clear()
 
         LOGGER.debug(f'RTT search...')
@@ -89,9 +83,8 @@ class RTTLogger(threading.Thread):
             if len(recv) > 0:
                 self.handler(recv)
 
-            # Batch RTT reads
+            # Yield to other threads
             time.sleep(.01)
-            # TODO: do something with that data
 
         LOGGER.debug(f'RTT stop')
         self.emu.rtt_stop()
@@ -205,10 +198,8 @@ def reset(id, family, emu=None):
         # emu.debug_reset()
         emu.pin_reset()
     else:
-        # TODO: check if this doesn't disturb Ozone
         with SeggerDevice(family, id) as emu:
             LOGGER.info(f'[{id}] reset')
-            # emu.debug_reset()
             emu.pin_reset()
             # Other ways to reset the device:
             # emu.debug_reset()

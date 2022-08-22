@@ -21,18 +21,14 @@ class UARTChannel(threading.Thread):
                  port=None,
                  baudrate=1000000,
                  rtscts=True,
-                 ignore_timeout=False,
                  rx_handler=None):
-        # TODO: remove ?
-        # Maye use serial.threaded instead
-        # Set daemon to True so the thread does not prevent the test session from exiting.
+        # TODO: Maybe serial.threaded could be used
         threading.Thread.__init__(self, daemon=True)
         self.port = port
 
         self._stop_rx_flag = threading.Event() # Used to cleanly stop the RX thread
         self._rx_handler = rx_handler # Mandatory, called for each RX packet/unit
 
-        self._ignore_timeout = ignore_timeout
         self._max_recv_byte_count = self.MAX_RECV_BYTE_COUNT
 
         self._serial = serial.Serial(port=port, baudrate=baudrate, rtscts=rtscts,
@@ -53,16 +49,7 @@ class UARTChannel(threading.Thread):
         while data:
             data = data[byte_count:]
 
-            try:
-                byte_count += self._serial.write(data)
-            except serial.serialutil.SerialTimeoutException:
-                # Added for old nRF53 devkits
-                # TODO: is that necessary anymore ?
-                if self._ignore_timeout:
-                    # Assume all data has been sent
-                    byte_count += len(data)
-                else:
-                    raise
+            byte_count += self._serial.write(data)
 
             if time.monotonic() - start_time > timeout:
                 LOGGER.error(f'Message not sent during required time: {timeout}')
@@ -72,14 +59,12 @@ class UARTChannel(threading.Thread):
 
     def run(self):
         LOGGER.debug(f'Start RX [{self.port}]')
-        # TODO: find more idiomatic way of doing this
         self._stop_rx_flag.clear()
 
         while not self._stop_rx_flag.isSet():
             recv = self._serial.read(self.MAX_RECV_BYTE_COUNT)
 
-            # TODO: remove ?
-            # Supposedly helps with multiple devices
+            # Yield to other threads
             if recv == b'':
                 time.sleep(0.01)
                 continue
@@ -111,11 +96,10 @@ class UARTRPCChannel(UARTChannel):
                  port=None,
                  baudrate=1000000,
                  rtscts=True,
-                 ignore_timeout=False,
                  default_packet_handler=None,
                  group_name=None):
 
-        super().__init__(port, baudrate, rtscts, ignore_timeout, rx_handler=self.handle_rx)
+        super().__init__(port, baudrate, rtscts, rx_handler=self.handle_rx)
 
         LOGGER.debug(f'rpc channel init: {port}')
         self.group_name = group_name
@@ -219,7 +203,6 @@ class UARTRPCChannel(UARTChannel):
             return self.events.get(timeout=timeout)
 
         # TODO: add filtering by opcode
-
         return None
 
     def send_init(self):
