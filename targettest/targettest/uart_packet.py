@@ -19,6 +19,7 @@ class UARTHeader():
     @classmethod
     def unpack(cls, packet: bytes):
         packet = packet[:cls._size]
+        # LOGGER.debug(f'try-unpack: {packet.hex(" ")}')
         try:
             (header, length, crc) = struct.unpack(cls._format, packet)
             if header == cls._header:
