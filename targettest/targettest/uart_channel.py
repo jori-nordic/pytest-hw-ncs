@@ -118,16 +118,18 @@ class UARTRPCChannel(UARTChannel):
         # Save the current data in case decoding is not complete
         self.state.rx_buf = data
 
-        if self.state.header is None and len(data) >= UARTHeader._size:
-            # Attempt to decode the header
-            self.state.header = UARTHeader.unpack(data)
+        if len(data) >= UARTHeader._size:
+            if self.state.header is None:
+                # Attempt to decode the header
+                self.state.header = UARTHeader.unpack(data)
 
-        if self.state.header is None:
-            # Header failed to decode, eat one byte and try again
-            self.state.rx_buf = self.state.rx_buf[1:]
-            if len(data) >= UARTHeader._size:
-                self.handle_rx(b'')
-        else:
+            if self.state.header is None:
+                # Header failed to decode, eat one byte and try again
+                self.state.rx_buf = self.state.rx_buf[1:]
+                if len(data) >= UARTHeader._size:
+                    self.handle_rx(b'')
+
+        if self.state.header is not None:
             # Header has been decoded
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:

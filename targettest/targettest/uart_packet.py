@@ -29,7 +29,7 @@ class UARTHeader():
             LOGGER.info("Struct decoding error")
             pass
 
-        LOGGER.debug('invalid header')
+        # LOGGER.debug(f'invalid header ({packet.hex(" ")})')
         return None
 
     @classmethod
