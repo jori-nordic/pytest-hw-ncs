@@ -275,7 +275,7 @@ static void device_found(const bt_addr_le_t *addr,
 	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i",
 		dev, type, ad->len, rssi);
 
-	if (type == BT_GAP_ADV_TYPE_ADV_IND ) {
+	if (type == BT_GAP_ADV_TYPE_ADV_IND && rssi > -40) {
 		struct nrf_rpc_cbor_ctx ctx;
 		int err = 0;
 		NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
