@@ -162,7 +162,7 @@ void evt_nested_list(void)
 
 	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_DEMO_NESTED_LIST, &ctx);
 
-	printk("Sent demo event\n");
+	LOG_INF("Sent demo event");
 }
 
 static void handler_connect(const struct nrf_rpc_group *group,
@@ -226,12 +226,15 @@ static void handler_connect(const struct nrf_rpc_group *group,
 	/* Free the RPC workqueue (and the RX buffer) */
 	nrf_rpc_cbor_decoding_done(group, ctx);
 
+	struct bt_conn *conn;
+
 	if (!err) {
 		LOG_DBG("decode ok");
-		err = 0;
-		/* Place decoded items into the target structs, and call
-		 * `bt_conn_le_create`.
-		 */
+
+		struct bt_conn_le_create_param *create_params =
+			BT_CONN_LE_CREATE_PARAM(options, interval, window);
+
+		err = bt_conn_le_create(&peer, create_params, BT_LE_CONN_PARAM_DEFAULT, &conn);
 		LOG_INF("bt_conn_le_create (%d)", err);
 	} else {
 		LOG_ERR("%s: parsing error", __func__);
@@ -269,7 +272,7 @@ static void device_found(const bt_addr_le_t *addr,
 	char dev[BT_ADDR_LE_STR_LEN];
 
 	bt_addr_le_to_str(addr, dev, sizeof(dev));
-	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i\n",
+	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i",
 		dev, type, ad->len, rssi);
 
 	if (type == BT_GAP_ADV_TYPE_ADV_IND ) {
@@ -304,29 +307,78 @@ static void handler_scan(const struct nrf_rpc_group *group,
 			 void *handler_data)
 {
 	LOG_DBG("");
+	uint32_t start = (uint32_t)handler_data;
+	int err;
 
 	/* Free the RPC workqueue (and the RX buffer) */
 	nrf_rpc_cbor_decoding_done(group, ctx);
 
-	/* Use active scanning and disable duplicate filtering to handle any
-	 * devices that might update their advertising data at runtime. */
-	struct bt_le_scan_param scan_param = {
-		.type       = BT_LE_SCAN_TYPE_ACTIVE,
-		.options    = BT_LE_SCAN_OPT_NONE,
-		.interval   = BT_GAP_SCAN_FAST_INTERVAL,
-		.window     = BT_GAP_SCAN_FAST_WINDOW,
-	};
+	if (start) {
+		struct bt_le_scan_param scan_param = {
+			.type       = BT_LE_SCAN_TYPE_ACTIVE,
+			.options    = BT_LE_SCAN_OPT_NONE,
+			.interval   = BT_GAP_SCAN_FAST_INTERVAL,
+			.window     = BT_GAP_SCAN_FAST_WINDOW,
+		};
 
-	int err = bt_le_scan_start(&scan_param, device_found);
-	LOG_INF("bt_le_scan_start: %d", err);
+		err = bt_le_scan_start(&scan_param, device_found);
+		LOG_INF("bt_le_scan_start: %d", err);
+	} else {
+		err = bt_le_scan_stop();
+		LOG_INF("bt_le_scan_stop: %d", err);
+	}
 }
 
-NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan, RPC_ASYNC_BT_SCAN, handler_scan, NULL);
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan, RPC_ASYNC_BT_SCAN, handler_scan, (void*)1);
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan_stop, RPC_ASYNC_BT_SCAN_STOP, handler_scan, (void*)0);
+
+static void connected(struct bt_conn *conn, uint8_t conn_err)
+{
+	LOG_INF("connected");
+	int err = 0;
+	char str[BT_ADDR_LE_STR_LEN];
+	const bt_addr_le_t *addr = bt_conn_get_dst(conn);
+
+	bt_addr_le_to_str(addr, str, sizeof(str));
+
+	if (conn_err) {
+		LOG_INF("Failed to connect to %s (%u)", str, conn_err);
+	} else {
+		LOG_INF("Connected: %s", str);
+	}
+
+	struct nrf_rpc_cbor_ctx ctx;
+	NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
+	zcbor_state_t *zs = ctx.zs;
+
+	/* address, errcode */
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+
+	/* address */
+	ERR_HANDLE(zcbor_list_start_encode(zs, 2));
+	ERR_HANDLE(zcbor_uint32_put(zs, addr->type));
+	ERR_HANDLE(zcbor_bstr_encode_ptr(ctx.zs,
+					 (const uint8_t *)(addr->a.val),
+					 sizeof(addr->a.val)));
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	ERR_HANDLE(zcbor_uint32_put(zs, conn_err));
+
+	ERR_HANDLE(zcbor_list_end_encode(zs, 2));
+
+	nrf_rpc_cbor_evt_no_err(&test_group, RPC_EVENT_BT_CONNECTED, &ctx);
+
+	bt_conn_unref(conn);
+}
+
+BT_CONN_CB_DEFINE(conn_callbacks) = {
+	.connected = connected,
+};
 
 /* Initialization of the UART transport, and the RPC subsystem. */
 static void err_handler(const struct nrf_rpc_err_report *report)
 {
-	printk("nRF RPC error %d ocurred. See nRF RPC logs for more details.",
+	LOG_INF("nRF RPC error %d ocurred. See nRF RPC logs for more details.",
 	       report->code);
 	k_oops();
 }
