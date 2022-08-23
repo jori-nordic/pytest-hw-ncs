@@ -67,7 +67,7 @@ class UARTChannel(threading.Thread):
 
             # Yield to other threads
             if recv == b'':
-                time.sleep(0.01)
+                time.sleep(0.0001)
                 continue
 
             LOGGER.debug(f'RX [{self.port}] {recv.hex(" ")}')

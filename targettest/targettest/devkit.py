@@ -79,7 +79,7 @@ class RTTLogger(threading.Thread):
 
         LOGGER.debug(f'RTT opened')
         while not self._stop_rx_flag.isSet():
-            recv = self.emu.rtt_read(0, 100)
+            recv = self.emu.rtt_read(0, 255)
             if len(recv) > 0:
                 self.handler(recv)
 
