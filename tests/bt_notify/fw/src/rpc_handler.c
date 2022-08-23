@@ -332,6 +332,21 @@ static void handler_scan(const struct nrf_rpc_group *group,
 NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan, RPC_ASYNC_BT_SCAN, handler_scan, (void*)1);
 NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_scan_stop, RPC_ASYNC_BT_SCAN_STOP, handler_scan, (void*)0);
 
+static void handler_k_oops(const struct nrf_rpc_group *group,
+			    struct nrf_rpc_cbor_ctx *ctx,
+			    void *handler_data)
+{
+	LOG_DBG("");
+
+	nrf_rpc_cbor_decoding_done(group, ctx);
+
+	/* Trigger a panic */
+	LOG_INF("Triggering panic");
+	k_oops();
+}
+
+NRF_RPC_CBOR_EVT_DECODER(test_group, test_k_oops, RPC_ASYNC_K_OOPS, handler_k_oops, NULL);
+
 static void connected(struct bt_conn *conn, uint8_t conn_err)
 {
 	LOG_INF("connected");

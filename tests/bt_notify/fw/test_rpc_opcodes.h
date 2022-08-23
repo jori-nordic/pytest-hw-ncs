@@ -26,6 +26,8 @@ enum event_opcodes {
 	RPC_ASYNC_BT_SCAN_STOP,
 	RPC_ASYNC_BT_CONNECT,
 	RPC_ASYNC_BT_DISCONNECT,
+
+	RPC_ASYNC_K_OOPS,
 };
 
 #endif /* RPC_OPCODES_H_ */

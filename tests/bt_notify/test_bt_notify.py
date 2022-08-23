@@ -21,6 +21,7 @@ class RPCEvents(enum.IntEnum):
     BT_SCAN_STOP = enum.auto()
     BT_CONNECT = enum.auto()
     BT_DISCONNECT = enum.auto()
+    K_OOPS = enum.auto()
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
@@ -55,6 +56,12 @@ class TestBluetooth():
     def test_boot(self, testdevices):
         LOGGER.info("Boot test")
         assert len(testdevices) == 2
+
+    def test_trigger_oops(self, testdevices):
+        LOGGER.info("k_oops test")
+        # Trigger a kernel panic
+        with pytest.raises(Exception):
+            testdevices['dut'].rpc.evt(RPCEvents.K_OOPS)
 
     def test_scan(self, advertiser, scanner):
         LOGGER.info("Scan test")
