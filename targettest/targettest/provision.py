@@ -26,6 +26,9 @@ def get_available_dk(family, id=None):
                     return dev
     return None
 
+def get_dk_list():
+    return devkits
+
 def get_fw_path(suite, board, child_image_name=None):
     """Find the firmware for the calling test suite"""
     root_dir = pathlib.Path(suite.config.rootdir)

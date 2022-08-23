@@ -214,6 +214,11 @@ def halt(id, family, emu=None):
         with SeggerDevice(family, id) as emu:
             emu.halt()
 
+def halt_unused(devkits: list):
+    unused = [dk for dk in devkits if not dk.in_use]
+    for dk in unused:
+        halt(dk.segger_id, dk.family)
+
 def discover_dks():
     with SeggerEmulator() as api:
         ids = api.enum_emu_snr()

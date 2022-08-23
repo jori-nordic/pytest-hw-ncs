@@ -4,8 +4,9 @@ import pytest
 import yaml
 import logging
 from contextlib import ExitStack
-from targettest.devkit import discover_dks, Devkit
-from targettest.provision import register_dk, FlashedDevice, RPCDevice, TestDevice
+from targettest.devkit import Devkit, discover_dks, halt_unused
+from targettest.provision import (register_dk, get_dk_list,
+                                  FlashedDevice, RPCDevice, TestDevice)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ def flasheddevices(request):
                           emu=emu))
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
+        halt_unused(get_dk_list())
 
         yield devices
 
