@@ -3,6 +3,7 @@ import time
 import pathlib
 import logging
 from contextlib import contextmanager
+from intelhex import IntelHex
 from targettest.devkit import Devkit, flash, reset
 from targettest.uart_channel import UARTRPCChannel
 
@@ -29,7 +30,13 @@ def get_available_dk(family, id=None):
 def get_dk_list():
     return devkits
 
-def get_fw_path(suite, board, child_image_name=None):
+def extract_net_hex(merged_hex, output_hex):
+    """Writes a new ihex file containing only the nRF53 network core's FW."""
+    ih = IntelHex(str(merged_hex))
+    net = ih[0x1000000:]
+    net.write_hex_file(str(output_hex))
+
+def get_fw_path(suite, board, network_core=None):
     """Find the firmware for the calling test suite"""
     root_dir = pathlib.Path(suite.config.rootdir)
     script_path = pathlib.Path(getattr(suite.module, "__file__"))
@@ -37,15 +44,16 @@ def get_fw_path(suite, board, child_image_name=None):
 
     fw_build = root_dir / 'build' / rel_suite_path / board
 
-    if child_image_name is None:
-        fw_hex = fw_build / 'zephyr/zephyr.hex'
+    if network_core is None:
+        fw_hex = fw_build / 'zephyr' / 'zephyr.hex'
     else:
-        fw_hex = fw_build / child_image_name / 'zephyr/zephyr.hex'
+        merged_hex = fw_build / 'zephyr' / 'merged_domains.hex'
+        fw_hex = fw_build / 'zephyr' / 'network.hex'
+        extract_net_hex(merged_hex, fw_hex)
 
     assert fw_build.exists(), "Missing firmware"
 
     return fw_hex
-
 
 @contextmanager
 def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', name=None, flash_device=True, emu=True):
@@ -63,7 +71,7 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
         # Flash device with test FW & reset it
         if family == 'NRF53':
             # Flash the network core first
-            fw_hex = get_fw_path(request, board, child_image_name='hci_rpmsg')
+            fw_hex = get_fw_path(request, board, network_core=True)
             flash(dev.segger_id, dev.family, fw_hex, core='NET')
 
         fw_hex = get_fw_path(request, board)
