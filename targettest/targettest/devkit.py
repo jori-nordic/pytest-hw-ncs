@@ -116,6 +116,8 @@ class Devkit:
         self.log += rx
 
     def start_logging(self):
+        self.log = ''
+
         if self.emu is None:
             LOGGER.debug(f'[{self.segger_id}] skipping log setup')
             return
