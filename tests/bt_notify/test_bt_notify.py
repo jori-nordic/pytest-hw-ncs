@@ -61,6 +61,7 @@ class TestBluetooth():
         LOGGER.info("k_oops test")
         # Trigger a kernel panic
         with pytest.raises(Exception):
+            # Will raise a comm failure because the device will be unresponsive
             testdevices['dut'].rpc.evt(RPCEvents.K_OOPS)
 
     def test_scan(self, advertiser, scanner):

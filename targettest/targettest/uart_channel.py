@@ -165,21 +165,27 @@ class UARTRPCChannel(UARTChannel):
             self.send_init()
             self.established = True
             LOGGER.debug(f'[{self.port}] channel established')
+
         elif packet.packet_type == RPCPacketType.EVT:
             self.events.put(packet)
             self.ack(packet.opcode)
+
         elif packet.packet_type == RPCPacketType.ACK:
             (_, sent_opcode) = self._ack
             assert packet.opcode == sent_opcode
             self._ack = (packet, packet.opcode)
+
         elif packet.packet_type == RPCPacketType.RSP:
             # We just assume only one command can be in-flight at a time
             # Should be enough for testing, can be extended later.
             self._rsp = packet
+
         elif self.handler_exists(packet):
             self.lookup(packet)(self, packet)
+
         elif self.default_packet_handler is not None:
             self.default_packet_handler(self, packet)
+
         else:
             LOGGER.error(f'[{self.port}] unhandled packet {packet}')
 
