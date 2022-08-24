@@ -31,7 +31,7 @@ def configure_advertiser(rpcdevice):
 def configure_scanner(rpcdevice):
     # configure & start scanner
     LOGGER.info("Configure scan")
-    rpcdevice.evt(RPCEvents.BT_SCAN)
+    rpcdevice.evt_cbor(RPCEvents.BT_SCAN, -50)
 
 def connect(rpcdevice, addr, cfg=None):
     if cfg is None:
@@ -85,7 +85,7 @@ class TestBluetooth():
 
         # Configure an advertiser and a scanner
         peripheral.evt(RPCEvents.BT_ADVERTISE)
-        central.evt(RPCEvents.BT_SCAN)
+        central.evt_cbor(RPCEvents.BT_SCAN, -50)
 
         # Pull out the demo event we don't care about
         event = peripheral.get_evt(timeout=10)

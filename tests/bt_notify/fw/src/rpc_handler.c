@@ -264,18 +264,21 @@ static void handler_advertise(const struct nrf_rpc_group *group,
 
 NRF_RPC_CBOR_EVT_DECODER(test_group, test_bt_advertise, RPC_ASYNC_BT_ADVERTISE, handler_advertise, NULL);
 
+int8_t rssi_threshold;
 static void device_found(const bt_addr_le_t *addr,
 			 int8_t rssi,
 			 uint8_t type,
 			 struct net_buf_simple *ad)
 {
-	char dev[BT_ADDR_LE_STR_LEN];
+	if (type == BT_GAP_ADV_TYPE_ADV_IND && rssi > rssi_threshold) {
+		/* Log the device */
+		char dev[BT_ADDR_LE_STR_LEN];
 
-	bt_addr_le_to_str(addr, dev, sizeof(dev));
-	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i",
-		dev, type, ad->len, rssi);
+		bt_addr_le_to_str(addr, dev, sizeof(dev));
+		LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i",
+			dev, type, ad->len, rssi);
 
-	if (type == BT_GAP_ADV_TYPE_ADV_IND && rssi > -40) {
+		/* Package and send the SCAN_REPORT RPC event */
 		struct nrf_rpc_cbor_ctx ctx;
 		int err = 0;
 		NRF_RPC_CBOR_ALLOC(&test_group, ctx, CBOR_BUF_SIZE_LARGE);
@@ -302,6 +305,19 @@ static void device_found(const bt_addr_le_t *addr,
 	}
 }
 
+static int8_t decode_rssi_threshold(struct nrf_rpc_cbor_ctx *ctx)
+{
+	int32_t err = 0;
+	int32_t threshold;
+
+	/* Since only one element is encoded (i.e. not a list container), we
+	 * don't need to create a new ZCBOR context to decode it.
+	 */
+	ERR_HANDLE(zcbor_int32_decode(ctx->zs, &threshold));
+
+	return threshold;
+}
+
 static void handler_scan(const struct nrf_rpc_group *group,
 			 struct nrf_rpc_cbor_ctx *ctx,
 			 void *handler_data)
@@ -310,10 +326,14 @@ static void handler_scan(const struct nrf_rpc_group *group,
 	uint32_t start = (uint32_t)handler_data;
 	int err;
 
-	/* Free the RPC workqueue (and the RX buffer) */
-	nrf_rpc_cbor_decoding_done(group, ctx);
-
 	if (start) {
+		/* Store threshold for scanned devices */
+		rssi_threshold = (int8_t)decode_rssi_threshold(ctx);
+		LOG_INF("RSSI threshold %d", rssi_threshold);
+
+		/* Free the RPC workqueue (and the RX buffer) */
+		nrf_rpc_cbor_decoding_done(group, ctx);
+
 		struct bt_le_scan_param scan_param = {
 			.type       = BT_LE_SCAN_TYPE_ACTIVE,
 			.options    = BT_LE_SCAN_OPT_NONE,
@@ -324,6 +344,9 @@ static void handler_scan(const struct nrf_rpc_group *group,
 		err = bt_le_scan_start(&scan_param, device_found);
 		LOG_INF("bt_le_scan_start: %d", err);
 	} else {
+		/* Free the RPC workqueue (and the RX buffer) */
+		nrf_rpc_cbor_decoding_done(group, ctx);
+
 		err = bt_le_scan_stop();
 		LOG_INF("bt_le_scan_stop: %d", err);
 	}
