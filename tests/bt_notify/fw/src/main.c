@@ -8,10 +8,7 @@
 #include <bluetooth/bluetooth.h>
 #include <nrf_rpc.h>
 
-#include "rpc_handler.h"
-
 void evt_ready(void);
-void evt_scan_report(void);
 
 void main(void)
 {
