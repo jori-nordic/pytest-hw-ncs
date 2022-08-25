@@ -1,16 +1,14 @@
-#!/usr/bin/env python3
-
 import serial
 import time
 import threading
-import queue
 import logging
 from contextlib import contextmanager
 from targettest.uart_packet import UARTHeader
-from targettest.rpc_packet import RPCPacket, RPCPacketType
-from targettest.cbor import CBORPayload
+from targettest.rpc_packet import RPCPacket
+from targettest.abstract_transport import PacketTransport
 
 LOGGER = logging.getLogger(__name__)
+
 
 class UARTChannel(threading.Thread):
     DEFAULT_TIMEOUT = 0.001
@@ -74,7 +72,10 @@ class UARTChannel(threading.Thread):
 
             self._rx_handler(recv)
 
-    def stop(self):
+    def open(self):
+        self.start()
+
+    def close(self):
         self._stop_rx_flag.set()
         self.join()
         self._serial.close()
@@ -92,25 +93,29 @@ class UARTDecodingState():
         return f'{self.header} buf {self.rx_buf.hex(" ")}'
 
 
-class UARTRPCChannel(UARTChannel):
+class UARTRPCChannel(PacketTransport):
     def __init__(self,
-                 port=None,
+                 port,
                  baudrate=1000000,
                  rtscts=True,
-                 default_packet_handler=None,
-                 group_name=None):
+                 packet_handler=None):
 
-        super().__init__(port, baudrate, rtscts, rx_handler=self.handle_rx)
-
-        LOGGER.debug(f'rpc channel init: {port}')
-        self.group_name = group_name
-        self.remote_gid = 0
-        self.default_packet_handler = default_packet_handler
+        self.uart = UARTChannel(port, baudrate, rtscts, rx_handler=self.handle_rx)
         self.state = UARTDecodingState()
 
-        self.handler_lut = {item.value: {} for item in RPCPacketType}
-        self.established = False
-        self.events = queue.Queue()
+        LOGGER.debug(f'UART packet channel init: {port}')
+
+    def __repr__(self):
+        return f'{self.uart.port}'
+
+    def open(self):
+        self.uart.open()
+
+    def close(self):
+        self.uart.close()
+
+    def send(self, data, timeout=15):
+        self.uart.send(data, timeout)
 
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
@@ -134,7 +139,7 @@ class UARTRPCChannel(UARTChannel):
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
                 packet = RPCPacket.unpack(data)
-                self.handler(packet)
+                self.packet_handler(packet)
 
                 # Consume the data in the RX buffer
                 data = data[self.state.header._size + self.state.header.length:]
@@ -143,145 +148,3 @@ class UARTRPCChannel(UARTChannel):
                 if len(data) > 0:
                     self.handle_rx(data)
 
-    def handler_exists(self, packet: RPCPacket):
-        return packet.opcode in self.handler_lut[packet.packet_type]
-
-    def lookup(self, packet: RPCPacket):
-        return self.handler_lut[packet.packet_type][packet.opcode]
-
-    def handler(self, packet: RPCPacket):
-        LOGGER.debug(f'Handling {packet}')
-        # TODO: terminate session on ERR packets
-        # Call opcode handler if registered, else call default handler
-        if packet.packet_type == RPCPacketType.INIT:
-            # Check the INIT packet is for the test system
-            assert packet.payload == b'\x00' + self.group_name.encode()
-            self.remote_gid = packet.gid_src
-
-            self.clear_buffers()
-            self.clear_events()
-
-            # Mark channel as usable and send INIT response
-            self.send_init()
-            self.established = True
-            LOGGER.debug(f'[{self.port}] channel established')
-
-        elif packet.packet_type == RPCPacketType.EVT:
-            self.events.put(packet)
-            self.ack(packet.opcode)
-
-        elif packet.packet_type == RPCPacketType.ACK:
-            (_, sent_opcode) = self._ack
-            assert packet.opcode == sent_opcode
-            self._ack = (packet, packet.opcode)
-
-        elif packet.packet_type == RPCPacketType.RSP:
-            # We just assume only one command can be in-flight at a time
-            # Should be enough for testing, can be extended later.
-            self._rsp = packet
-
-        elif self.handler_exists(packet):
-            self.lookup(packet)(self, packet)
-
-        elif self.default_packet_handler is not None:
-            self.default_packet_handler(self, packet)
-
-        else:
-            LOGGER.error(f'[{self.port}] unhandled packet {packet}')
-
-    def register_packet(self, packet_type: RPCPacketType, opcode: int, packet_handler):
-        self.handler_lut[packet_type][opcode] = packet_handler
-
-    def ack(self, opcode: int):
-        packet = RPCPacket(RPCPacketType.ACK, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=b'')
-
-        super().send(packet.raw)
-
-    def evt(self, opcode: int, data: bytes=b'', timeout=5):
-        packet = RPCPacket(RPCPacketType.EVT, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=data)
-        self._ack = (None, opcode)
-
-        super().send(packet.raw)
-
-        end_time = time.monotonic() + timeout
-        while self._ack[0] is None:
-            time.sleep(.01)
-            if time.monotonic() > end_time:
-                raise Exception('Async command timeout')
-
-        # Return packet containing the ACK
-        return self._ack[1]
-
-    def evt_cbor(self, opcode: int, data=None, timeout=5):
-        if data is not None:
-            payload = CBORPayload(data).encoded
-            LOGGER.debug(f'encoded payload: {payload.hex(" ")}')
-            self.evt(opcode, payload, timeout=timeout)
-        else:
-            self.evt(opcode, timeout=timeout)
-
-    def cmd(self, opcode: int, data: bytes=b'', timeout=5):
-        # WARNING:
-        #
-        # Only use EVENTS (async) when calling APIs that make use of nRF RPC on
-        # the device (e.g., if using BT_RPC and calling bt_enable() in the
-        # handler).
-        #
-        # If commands (sync) are used, nRF RPC will get confused, being called
-        # from an existing RPC context (UART in this case) and will try to send
-        # the command over IPC, but using the wrong IDs, resulting in a deadlock.
-        packet = RPCPacket(RPCPacketType.CMD, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=data)
-        self._rsp = None
-
-        super().send(packet.raw)
-
-        end_time = time.monotonic() + timeout
-        while self._rsp is None:
-            time.sleep(.01)
-            if time.monotonic() > end_time:
-                raise Exception('Command timeout')
-
-        return self._rsp
-
-    def cmd_cbor(self, opcode: int, data=None, timeout=5):
-        if data is not None:
-            payload = CBORPayload(data).encoded
-            LOGGER.debug(f'encoded payload: {payload.hex(" ")}')
-            rsp = self.cmd(opcode, payload, timeout=timeout)
-        else:
-            rsp = self.cmd(opcode, timeout=timeout)
-
-        LOGGER.debug(f'decoded payload: {rsp.payload.hex(" ")}')
-        return CBORPayload.read(rsp.payload).objects
-
-    def clear_events(self):
-        while not self.events.empty():
-            self.events.get()
-
-    def get_evt(self, opcode=None, timeout=5):
-        if opcode is None:
-            return self.events.get(timeout=timeout)
-
-        # TODO: add filtering by opcode
-        return None
-
-    def send_init(self):
-        # Isn't encoded with CBOR
-        # Protocol version + RPC group name
-        version = b'\x00'
-        payload = self.group_name.encode()
-        packet = RPCPacket(RPCPacketType.INIT,
-                           0, 0, 0xFF, self.remote_gid, self.remote_gid,
-                           version + payload)
-
-        LOGGER.debug(f'Send handshake {packet}')
-        super().send(packet.raw)

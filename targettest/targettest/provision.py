@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from intelhex import IntelHex
 from targettest.devkit import Devkit, flash, reset
 from targettest.uart_channel import UARTRPCChannel
+from targettest.rpc_channel import RPCChannel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -90,8 +91,9 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
 def RPCDevice(device: Devkit, group='nrf_pytest'):
     try:
         # Manage RPC transport
-        channel = UARTRPCChannel(port=device.port, group_name=group)
-        channel.start()
+        uart = UARTRPCChannel(port=device.port)
+        channel = RPCChannel(uart, group_name=group)
+        uart.open()
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
         device.reset()
@@ -114,7 +116,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
 
     finally:
         LOGGER.info(f'[{device.port}] closing channel')
-        channel.stop()
+        uart.close()
         device.stop_logging()
         device.halt()
 
