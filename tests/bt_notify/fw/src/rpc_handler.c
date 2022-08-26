@@ -7,7 +7,7 @@
 #include <zephyr/init.h>
 #include <string.h>
 
-#include <nrf_rpc/nrf_rpc_uart.h>
+#include <nrf_rpc_uart.h>
 #include <nrf_rpc_cbor.h>
 
 #include <zcbor_common.h>

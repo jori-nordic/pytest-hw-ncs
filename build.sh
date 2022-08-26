@@ -18,6 +18,6 @@ while read -r line; do
         BUILD_DIR=build/$(dirname "$line")/${board}
         SRC_DIR=$(dirname "$line")/fw
         echo "building firmware for $line in $BUILD_DIR"
-        west build -b "$board" -d "$BUILD_DIR" "$SRC_DIR"
+        west build -b "$board" -d "$BUILD_DIR" "$SRC_DIR" -C zephyr-modules.cmake
     done
 done < "$TEST_LIST_FILE"

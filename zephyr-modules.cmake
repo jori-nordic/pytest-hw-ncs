@@ -1,0 +1,1 @@
+set(ZEPHYR_EXTRA_MODULES "${CMAKE_CURRENT_LIST_DIR}/nrf_rpc_uart" CACHE STRING "nRF RPC over UART transport")

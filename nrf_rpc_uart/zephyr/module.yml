@@ -1,0 +1,4 @@
+name: nrf_rpc_uart
+build:
+  cmake: .
+  kconfig: Kconfig
