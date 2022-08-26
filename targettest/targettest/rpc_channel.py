@@ -154,6 +154,14 @@ class RPCChannel():
         # TODO: add filtering by opcode
         return None
 
+    def get_evt_cbor(self, opcode=None, timeout=5):
+        evt = self.get_evt(opcode, timeout)
+
+        if evt is None:
+            return (evt, None)
+
+        return (evt, CBORPayload.read(evt.payload).objects[0])
+
     def send_init(self):
         # Isn't encoded with CBOR
         # Protocol version + RPC group name

@@ -68,16 +68,15 @@ class TestBluetooth():
         LOGGER.info("Scan test")
 
         # Get demo event
-        event = advertiser.rpc.get_evt(timeout=10)
+        event, payload = advertiser.rpc.get_evt_cbor(timeout=10)
         assert event is not None
-        payload = CBORPayload.read(event.payload).objects[0]
+
         LOGGER.info(f'evt: {payload}')
 
-        event = scanner.rpc.get_evt(timeout=10)
+        # Get scanned device event
+        event, payload = scanner.rpc.get_evt_cbor(timeout=10)
         assert event is not None
 
-        payload = CBORPayload.read(event.payload).objects[0]
-        addr = payload[0]
         LOGGER.info(f'evt: {payload}')
 
     def test_conn(self, testdevices):
@@ -93,11 +92,11 @@ class TestBluetooth():
         assert event.opcode == RPCEvents.DEMO_NESTED_LIST
 
         # Wait for the first scan report
-        event = central.get_evt(timeout=10)
+        event, payload = central.get_evt_cbor(timeout=10)
+        assert event is not None
         assert event.opcode == RPCEvents.BT_SCAN_REPORT
 
         # Decode payload and extract the address
-        payload = CBORPayload.read(event.payload).objects[0]
         LOGGER.info(f'scan report: {payload}')
         addr = payload[0]
 
@@ -107,12 +106,12 @@ class TestBluetooth():
         connect(central, addr)
 
         # Wait for the connected event on both sides
-        event = central.get_evt(timeout=10)
+        event, payload = central.get_evt_cbor(timeout=10)
+        assert event is not None
         assert event.opcode == RPCEvents.BT_CONNECTED
-        payload = CBORPayload.read(event.payload).objects[0]
         LOGGER.info(f'connected: {payload}')
 
-        event = peripheral.get_evt(timeout=10)
+        event, payload = peripheral.get_evt_cbor(timeout=10)
+        assert event is not None
         assert event.opcode == RPCEvents.BT_CONNECTED
-        payload = CBORPayload.read(event.payload).objects[0]
         LOGGER.info(f'connected: {payload}')
