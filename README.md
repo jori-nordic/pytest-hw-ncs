@@ -55,6 +55,8 @@ The tests can call (C) functions running on the device and get data back, using 
 Source `zephyr-env.sh` (just like when building a stand-alone zephyr project).
 Call `build.sh`, it will build all the test FW images for the 'nrf5340dk_nrf5340_cpuapp' and 'nrf52840dk_nrf52840' platforms.
 
+The build output is located in `build/`, with the path of the test suite folder.
+
 Firmware images are defined as standard zephyr applications, so the Zephyr and NCS documentation applies.
 
 ## Discovery
@@ -172,10 +174,63 @@ junit2html path/to/report.xml
 ```
 
 # How does it work
+
+## Test fixtures
+
+Pytest has the concept of [Test fixtures](https://docs.pytest.org/en/7.1.x/explanation/fixtures.html#about-fixtures).
+
+In a nutshell, they the environment of the test:
+Instead on overloading `setUp` and `tearDown` methods, the test can require the presence of ready-to-use objects.
+
+The testcase method simply defines a parameter, and pytest will look for and execute a function decorated with `@pytest.fixture()` that has the same name. This fixture function can either return a value, or act as a context manager and `yield` a value, allowing it to do some cleanup when the testcase exits.
+
+E.g. a testcase that only deals with checking the throughput of a BLE connection can request the presence of a `connection` object, for which it can then call `send` and `receive` functions. Then the test code is very straightforward to read and there is no confusion on what it is actually testing.
+
+Fixtures can be scoped (session, class, case) and can also request other fixtures.
+
 ## Test setup procedure
-## Discovering devices
-## Device provisioning
+
+When pytest is invoked:
+- Parsing starts at `conftest.py`
+    - `pytest_addoption()` adds some custom options to the pytest cli
+    - The `devkits()` fixture registers development kits connected to the computer
+
+Pytest begins executing a test suite:
+- The `flasheddevices()` fixture provisions two devices of the correct family from the registered list, and flashes them with the firmware that matches the test suite's folder name. The emulator is also connected to. The unused DKs' CPUs are halted.
+
+Pytest begins executing a test case:
+- The `testdevices()` fixture is requested by the testcases. It opens the PC's serial port, and initiates nRF RPC communication. Once it has received the READY event (0x01) for both DUT and Tester, and opened the RTT logging channel, it returns the two devices as a dict.
+
+Pytest ends the test case:
+- Control is returned to `testdevices()`, which then prints the device logs for that test case.
+
+Pytest ends the test suite:
+- Control is returned to `flasheddevices()`, that in turn releases the `FlashedDevice` objects, closing the emulator connections.
+
 ## Communications
+
 ### nRF RPC + CBOR
+
+It is possible for the python test script to call test functions defined in the firmware.
+This happens using the [nRF RPC](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrfxlib/nrf_rpc/README.html) library, communicating over UART (serial port).
+Similarly, it is possible to receive events from the device.
+
+The parameters (or event data) are encoded in the [CBOR](https://cbor.io/) serialization format, using the [ZCBOR](https://github.com/NordicSemiconductor/zcbor/) library.
+
+The format is roughly: type, opcode, nRF RPC metadata, cbor-encoded data
+
+The opcode is a byte, and the IDs used in the firmware and in the test script need to match. It is recommended to use enums to that effect.
+
 ### Calling functions on target
+
+Due to a limitation in nRF RPC, we cannot use the CMD packet type, and instead have to use the EVT packet type, which is asynchronous (non-blocking). EVT packets will still block until an ACK packet is received from the other side.
+
+- `RPCChannel.evt()`: send an event without any data to the device.
+- `RPCChannel.evt_cbor()`: send an event with encoded data (or parameters) to the device.
+
 ### Getting data from the target
+
+Events that are emitted on target are stored in a python [Queue](https://docs.python.org/3/library/queue.html) in a FIFO manner.
+
+- `RPCChannel.get_evt()`: get an event from the device. No decoding will be done if it contains a data payload.
+- `RPCChannel.get_evt_cbor()`: get an event from the device. A tuple is returned, containing the raw event and its decoded payload.
