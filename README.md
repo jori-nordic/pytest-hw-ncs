@@ -88,6 +88,11 @@ Pytest's [documentation](https://docs.pytest.org/en/7.1.x/how-to/usage.html#spec
 
 ## Running
 
+### Default options
+
+Call `pytest` (no arguments) at the repo root.
+Logs will only be printed if a testcase fails.
+
 ### For different families
 
 Use the `--dut-family` and `--tester-family` options.
@@ -179,7 +184,7 @@ junit2html path/to/report.xml
 
 Pytest has the concept of [Test fixtures](https://docs.pytest.org/en/7.1.x/explanation/fixtures.html#about-fixtures).
 
-In a nutshell, they the environment of the test:
+In a nutshell, they define the environment of the test:
 Instead on overloading `setUp` and `tearDown` methods, the test can require the presence of ready-to-use objects.
 
 The testcase method simply defines a parameter, and pytest will look for and execute a function decorated with `@pytest.fixture()` that has the same name. This fixture function can either return a value, or act as a context manager and `yield` a value, allowing it to do some cleanup when the testcase exits.
