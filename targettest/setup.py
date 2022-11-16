@@ -1,3 +1,9 @@
 import setuptools
 
-setuptools.setup()
+setuptools.setup(install_requires=[
+    'pyyaml',
+    'cbor2',
+    'intelhex',
+    'pynrfjprog',
+    'pyserial',
+])

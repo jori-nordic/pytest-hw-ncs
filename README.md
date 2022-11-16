@@ -50,6 +50,13 @@ The tests can call (C) functions running on the device and get data back, using 
         └── test_bt_notify.py                     # contains the test logic
 ```
 
+## Pre-requesites
+
+Install the `targettest` package as local. This will install the required dependencies.
+``` sh
+pip3 install -e targettest/
+```
+
 ## Building
 
 Source `zephyr-env.sh` (just like when building a stand-alone zephyr project).
