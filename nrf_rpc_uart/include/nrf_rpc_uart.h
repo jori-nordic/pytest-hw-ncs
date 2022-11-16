@@ -7,7 +7,7 @@
 #ifndef NRF_RPC_UART_H_
 #define NRF_RPC_UART_H_
 
-#include <device.h>
+#include <zephyr/device.h>
 
 #include <nrf_rpc.h>
 #include <nrf_rpc_tr.h>

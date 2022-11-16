@@ -14,9 +14,9 @@
 #include <zcbor_decode.h>
 #include <zcbor_encode.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/addr.h>
-#include <bluetooth/conn.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/addr.h>
+#include <zephyr/bluetooth/conn.h>
 
 #include "test_rpc_opcodes.h"
 
@@ -34,7 +34,7 @@
 /* Maximum number of CBOR elements in the payload */
 #define NRF_RPC_MAX_PARAMETERS 255
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(rpc_handler, 3);
 
