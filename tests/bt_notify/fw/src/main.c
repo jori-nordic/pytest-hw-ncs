@@ -10,7 +10,7 @@
 
 void evt_ready(void);
 
-void main(void)
+int main(void)
 {
 	printk("RPC testing app started [APP Core].\n");
 
@@ -21,4 +21,6 @@ void main(void)
 	evt_ready();
 
 	printk("evt_ready sent\n");
+
+	return 0;
 }
