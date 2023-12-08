@@ -11,7 +11,9 @@ project(bt_notify)
 target_sources(app PRIVATE
   src/main.c
   src/rpc_handler.c
+  src/nih_rpc.c
 )
 
 # Needed for rpc_opcodes.h
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+src/)

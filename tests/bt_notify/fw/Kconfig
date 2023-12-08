@@ -1,5 +1,5 @@
-config NRF_RPC_UART
-	bool "nRF RPC over UART"
+config NIH_RPC_UART
+	bool "NIH RPC over UART"
 	default y
 	select SERIAL
 	select UART_INTERRUPT_DRIVEN
@@ -8,8 +8,10 @@ config NRF_RPC_UART
 	help
 	  If enabled, selects UART as a transport layer for nRF RPC.
 
-if NRF_RPC_UART
-config NRF_RPC_UART_BUF_SIZE
+if NIH_RPC_UART
+config NIH_RPC_UART_BUF_SIZE
 	int "Buffer size for both the uart ringbuf and the packet buffer."
 	default 2048
 endif
+
+source "Kconfig.zephyr"
