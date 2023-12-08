@@ -6,7 +6,6 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
-#include <nrf_rpc.h>
 
 void evt_ready(void);
 
