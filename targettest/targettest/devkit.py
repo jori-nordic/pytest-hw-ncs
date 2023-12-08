@@ -77,13 +77,13 @@ class RTTLogger(threading.Thread):
         LOGGER.debug(f'RTT search...')
         self.emu.rtt_start()
         while not (self.emu.rtt_is_control_block_found() or
-                   self._stop_rx_flag.isSet()):
+                   self._stop_rx_flag.is_set()):
             time.sleep(.1)
 
         self.ready = True
 
         LOGGER.debug(f'RTT opened')
-        while not self._stop_rx_flag.isSet():
+        while not self._stop_rx_flag.is_set():
             recv = self.emu.rtt_read(0, 255)
             if len(recv) > 0:
                 self.handler(recv)

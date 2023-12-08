@@ -65,7 +65,7 @@ class UARTChannel(threading.Thread):
         LOGGER.debug(f'Start RX [{self.port}]')
         self._stop_rx_flag.clear()
 
-        while not self._stop_rx_flag.isSet():
+        while not self._stop_rx_flag.is_set():
             recv = self._serial.read(self.MAX_RECV_BYTE_COUNT)
 
             # Yield to other threads
