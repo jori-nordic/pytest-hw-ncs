@@ -15,9 +15,12 @@
 #include <stdbool.h>
 
 enum nih_rpc_packet_types {
-	RPC_TYPE_CMD = 0,
+	RPC_TYPE_INIT = 0,
+	RPC_TYPE_CMD,
 	RPC_TYPE_RSP,
 	RPC_TYPE_EVT,
+	RPC_TYPE_ACK,
+	RPC_TYPE_ERR,
 	RPC_TYPE_MAX,
 };
 

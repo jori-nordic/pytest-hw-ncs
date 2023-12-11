@@ -4,3 +4,8 @@
 	status = "okay";
 	hw-flow-control;
 };
+/ {
+	chosen {
+		zephyr,rpc-uart = &uart0;
+	};
+};
