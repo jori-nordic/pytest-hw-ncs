@@ -7,20 +7,17 @@ import time
 import queue
 import logging
 from targettest.abstract_transport import PacketTransport
-from targettest.cbor import CBORPayload
 from targettest.rpc_packet import RPCPacket, RPCPacketType
 
 LOGGER = logging.getLogger(__name__)
 
 
 class RPCChannel():
-    def __init__(self, transport: PacketTransport, default_packet_handler=None, group_name=None):
+    def __init__(self, transport: PacketTransport, default_packet_handler=None):
         # A valid transport has to be initialized first
         self.transport = transport
         self.transport.packet_handler = self.handler
 
-        self.group_name = group_name
-        self.remote_gid = 0
         self.established = False
 
         # Handlers
@@ -39,10 +36,6 @@ class RPCChannel():
         # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
-            # Check the INIT packet is for the test system
-            assert packet.payload == b'\x00' + self.group_name.encode()
-            self.remote_gid = packet.gid_src
-
             self.transport.clear_buffers()
             self.clear_events()
 
@@ -78,18 +71,13 @@ class RPCChannel():
         self.handler_lut[packet_type][opcode] = packet_handler
 
     def ack(self, opcode: int):
-        packet = RPCPacket(RPCPacketType.ACK, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=b'')
+        # TODO: add event index or document in order
+        packet = RPCPacket(RPCPacketType.ACK, opcode, payload=b'')
 
         self.transport.send(packet.raw)
 
     def evt(self, opcode: int, data: bytes=b'', timeout=5):
-        packet = RPCPacket(RPCPacketType.EVT, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=data)
+        packet = RPCPacket(RPCPacketType.EVT, opcode, payload=data)
         self._ack = (None, opcode)
 
         self.transport.send(packet.raw)
@@ -103,28 +91,8 @@ class RPCChannel():
         # Return packet containing the ACK
         return self._ack[1]
 
-    def evt_cbor(self, opcode: int, data=None, timeout=5):
-        if data is not None:
-            payload = CBORPayload(data).encoded
-            LOGGER.debug(f'encoded payload: {payload.hex(" ")}')
-            self.evt(opcode, payload, timeout=timeout)
-        else:
-            self.evt(opcode, timeout=timeout)
-
-    def cmd(self, opcode: int, data: bytes=b'', timeout=5):
-        # WARNING:
-        #
-        # Only use EVENTS (async) when calling APIs that make use of nRF RPC on
-        # the device (e.g., if using BT_RPC and calling bt_enable() in the
-        # handler).
-        #
-        # If commands (sync) are used, nRF RPC will get confused, being called
-        # from an existing RPC context (UART in this case) and will try to send
-        # the command over IPC, but using the wrong IDs, resulting in a deadlock.
-        packet = RPCPacket(RPCPacketType.CMD, opcode,
-                           src=0, dst=0xFF,
-                           gid_src=self.remote_gid, gid_dst=self.remote_gid,
-                           payload=data)
+    def cmd(self, opcode: int, data: dict or bytes = b'', timeout=5):
+        packet = RPCPacket(RPCPacketType.CMD, opcode, payload=data)
         self._rsp = None
 
         self.transport.send(packet.raw)
@@ -137,44 +105,23 @@ class RPCChannel():
 
         return self._rsp
 
-    def cmd_cbor(self, opcode: int, data=None, timeout=5):
-        if data is not None:
-            payload = CBORPayload(data).encoded
-            LOGGER.debug(f'encoded payload: {payload.hex(" ")}')
-            rsp = self.cmd(opcode, payload, timeout=timeout)
-        else:
-            rsp = self.cmd(opcode, timeout=timeout)
-
-        LOGGER.debug(f'decoded payload: {rsp.payload.hex(" ")}')
-        return CBORPayload.read(rsp.payload).objects
-
     def clear_events(self):
         while not self.events.empty():
             self.events.get()
 
-    def get_evt(self, opcode=None, timeout=5):
-        if opcode is None:
-            return self.events.get(timeout=timeout)
+    def get_evt(self, opcode=None, schema=None, timeout=5):
+        event = None
+        decoded = None
 
         # TODO: add filtering by opcode
-        return None
+        if opcode is None:
+            event = self.events.get(timeout=timeout)
 
-    def get_evt_cbor(self, opcode=None, timeout=5):
-        evt = self.get_evt(opcode, timeout)
+        if schema:
+            decoded = event.decode(schema)
 
-        if evt is None:
-            return (evt, None)
-
-        return (evt, CBORPayload.read(evt.payload).objects[0])
+        return event, decoded
 
     def send_init(self):
-        # Isn't encoded with CBOR
-        # Protocol version + RPC group name
-        version = b'\x00'
-        payload = self.group_name.encode()
-        packet = RPCPacket(RPCPacketType.INIT,
-                           0, 0, 0xFF, self.remote_gid, self.remote_gid,
-                           version + payload)
-
-        LOGGER.debug(f'Send handshake {packet}')
-        self.transport.send(packet.raw)
+        # TODO: implement
+        pass

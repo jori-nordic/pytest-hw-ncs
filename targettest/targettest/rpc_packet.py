@@ -7,38 +7,61 @@ import enum
 import struct
 from targettest.uart_packet import UARTPacket
 
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
 
 class RPCPacketType(enum.IntEnum):
-    EVT = 0
-    RSP = 1
-    ACK = 2
-    ERR = 3
-    INIT = 4
-    CMD = 0x80
+    INIT = 0
+    CMD = enum.auto()
+    RSP = enum.auto()
+    EVT = enum.auto()
+    ACK = enum.auto()
+    ERR = enum.auto()
+
+
+def _encode(data: dict):
+    encoded = b''
+    for key, value in data.items():
+        if not isinstance(value[1], bytes):
+            encoded += struct.pack(value[0], value[1])
+        else:
+            encoded += value[1]
+
+    return encoded
+
+def _decode(schema: dict, buf: bytearray):
+    result = {}
+    offset = 0
+    for key, value in schema.items():
+        result[key] = (value[0], struct.unpack_from(value[0], buf, offset)[0])
+        offset += struct.calcsize(value[0])
+
+    return result
 
 
 class RPCPacket():
-    _format = '<BBBBB'
+    _format = '<BH'
     _size = struct.calcsize(_format)
 
-    # Header: SRC + type, ID, DST, GID SRC, GID DST
+    # Header: type + opcode
     def __init__(self,
                  packet_type: RPCPacketType,
-                 opcode, src, dst, gid_src, gid_dst,
-                 payload: bytes):
+                 opcode,
+                 payload: bytes or dict = None):
         self.packet_type = RPCPacketType(packet_type)
         self.opcode = opcode
-        self.src = src
-        self.dst = dst
-        self.gid_src = gid_src
-        self.gid_dst = gid_dst
-        self.payload = payload
         self.header = struct.pack(self._format,
-                                  packet_type | src,
-                                  opcode,
-                                  dst,
-                                  gid_src,
-                                  gid_dst)
+                                  packet_type,
+                                  opcode)
+
+        if isinstance(payload, bytes):
+            self.payload = payload
+        elif isinstance(payload, dict):
+            self.payload = _encode(payload)
+        else:
+            raise Exception("Provide payload as either a dict or bytes")
 
         # Build whole packet
         self.packet = UARTPacket(self.header + self.payload)
@@ -57,19 +80,13 @@ class RPCPacket():
         payload = UARTPacket.unpack(packet).payload
 
         # Separate RPC cmd/evt payload from RPC header
-        raw_header = payload[:cls._size]
+        rpc_header = payload[:cls._size]
         payload = payload[cls._size:]
 
-        (packet_type,
-         opcode,
-         dst,
-         gid_src,
-         gid_dst) = struct.unpack(cls._format, raw_header)
+        packet_type, opcode = struct.unpack(cls._format, rpc_header)
 
-        if packet_type & RPCPacketType.CMD:
-            src = packet_type & 0x7F
-            packet_type = RPCPacketType.CMD
-        else:
-            src = 0
+        return RPCPacket(packet_type, opcode, payload)
 
-        return RPCPacket(packet_type, opcode, src, dst, gid_src, gid_dst, payload)
+
+    def decode(self, schema: dict):
+        return _decode(schema, self.payload)

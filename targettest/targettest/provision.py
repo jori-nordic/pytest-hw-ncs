@@ -96,7 +96,7 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
     try:
         # Manage RPC transport
         uart = UARTRPCChannel(port=device.port)
-        channel = RPCChannel(uart, group_name=group)
+        channel = RPCChannel(uart)
         uart.open()
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
@@ -110,11 +110,12 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
-        # Wait for the READY event (sent from main)
-        # This is a user-defined event, it's not part of the nrf-rpc init sequence.
-        event = channel.get_evt()
-        assert event.opcode == 0x01
-        LOGGER.info(f'[{device.port}] channel ready')
+        if 0:
+            # Wait for the READY event (sent from main)
+            # This is a user-defined event, it's not part of the nrf-rpc init sequence.
+            event = channel.get_evt()
+            assert event.opcode == 0x01
+            LOGGER.info(f'[{device.port}] channel ready')
 
         yield channel
 

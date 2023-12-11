@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <zephyr/init.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <nih_rpc.h>
 
@@ -30,16 +31,34 @@ void evt_ready(void)
 	nih_rpc_send_event(buf, RPC_EVENT_READY);
 }
 
+struct _bt_conn_le_create_param {
+	uint32_t options;
+	uint16_t interval;
+	uint16_t window;
+	uint16_t interval_coded;
+	uint16_t window_coded;
+	uint16_t timeout;
+} __packed;
+
 struct cmd_connect {
 	bt_addr_le_t peer;
-	struct bt_conn_le_create_param params;
-};
+	struct _bt_conn_le_create_param params;
+} __packed;
 
 static int handler_connect(struct net_buf *buf)
 {
 	LOG_DBG("");
 
 	struct cmd_connect *p = net_buf_pull_mem(buf, sizeof(struct cmd_connect));
+
+	struct bt_conn_le_create_param params;
+
+	params.options = p->params.options;
+	params.interval = p->params.interval;
+	params.window = p->params.window;
+	params.interval_coded = p->params.interval_coded;
+	params.window_coded = p->params.window_coded;
+	params.timeout = p->params.timeout;
 
 	char addr_str[BT_ADDR_LE_STR_LEN] = {0};
 	bt_addr_le_to_str(&p->peer, addr_str, BT_ADDR_LE_STR_LEN);
@@ -51,7 +70,7 @@ static int handler_connect(struct net_buf *buf)
 	struct bt_conn *conn;
 
 	// TODO: does this leak? conn ref
-	int err = bt_conn_le_create(&p->peer, &p->params, BT_LE_CONN_PARAM_DEFAULT, &conn);
+	int err = bt_conn_le_create(&p->peer, &params, BT_LE_CONN_PARAM_DEFAULT, &conn);
 	LOG_INF("bt_conn_le_create (%d)", err);
 
 	return err;
@@ -86,7 +105,7 @@ struct evt_device_found {
 	int8_t rssi;
 	uint8_t type;
 	uint16_t ad_length;
-};
+} __packed;
 
 static int8_t rssi_threshold; /* set by `handler_scan` */
 
@@ -99,31 +118,30 @@ static void device_found(const bt_addr_le_t *addr,
 		/* Log the device */
 		char dev[BT_ADDR_LE_STR_LEN];
 
+		LOG_HEXDUMP_ERR(addr, sizeof(bt_addr_le_t), "addr:");
+
 		bt_addr_le_to_str(addr, dev, sizeof(dev));
 		LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i",
 			dev, type, ad->len, rssi);
 
 		struct net_buf *buf = nih_rpc_alloc_buf(sizeof(struct evt_device_found) + ad->len);
 
-		struct evt_device_found *evt = (struct evt_device_found *)buf->data;
+		struct evt_device_found *evt = net_buf_add(buf, sizeof(struct evt_device_found));
 
 		evt->rssi = rssi;
 		evt->type = type;
+		evt->ad_length = ad->len;
 		bt_addr_le_copy(&evt->addr, addr);
 
-		/* move data pointer after the struct */
-		(void)net_buf_push(buf, sizeof(struct evt_device_found));
-
-		/* copy AD */
-		(void)net_buf_push_mem(buf, ad->data, ad->len);
+		(void)net_buf_add_mem(buf, ad->data, ad->len);
 
 		nih_rpc_send_event(buf, RPC_EVENT_BT_SCAN_REPORT);
 	}
 }
 
 struct cmd_scan_start {
-	uint8_t rssi_threshold;
-};
+	int8_t rssi_threshold;
+} __packed;
 
 static int handler_scan_start(struct net_buf *buf)
 {
@@ -172,7 +190,7 @@ static int handler_k_oops(struct net_buf *buf)
 struct evt_connected {
 	bt_addr_le_t addr;
 	uint8_t conn_err;
-};
+} __packed;
 
 static void connected(struct bt_conn *conn, uint8_t conn_err)
 {
@@ -216,4 +234,6 @@ void register_handlers(void)
 	cmd_handlers[RPC_CMD_BT_CONNECT] = handler_connect;
 	cmd_handlers[RPC_CMD_BT_DISCONNECT] = handler_disconnect;
 	cmd_handlers[RPC_CMD_K_OOPS] = handler_k_oops;
+
+	nih_rpc_register_cmd_handlers(cmd_handlers, RPC_CMD_MAX);
 }

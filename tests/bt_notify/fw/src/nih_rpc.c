@@ -17,7 +17,7 @@
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(nih_rpc, 3);
+LOG_MODULE_REGISTER(nih_rpc, 4);
 
 // TODO: Use a buf pool depending on evt size
 NET_BUF_POOL_DEFINE(rpc_pool, 50, 2048, 0, NULL);
@@ -45,6 +45,7 @@ static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf)
 
 int nih_rpc_send_rsp(struct net_buf *buf, uint16_t opcode)
 {
+	LOG_DBG("op %x", opcode);
 	net_buf_push_le16(buf, opcode);
 	net_buf_push_u8(buf, RPC_TYPE_RSP);
 
@@ -55,8 +56,22 @@ int nih_rpc_send_rsp(struct net_buf *buf, uint16_t opcode)
 	return err;
 }
 
+static int nih_rpc_send_init(struct net_buf *buf)
+{
+	LOG_DBG("send init pkt");
+	net_buf_push_le16(buf, 0x1337);
+	net_buf_push_u8(buf, RPC_TYPE_INIT);
+
+	int err = transport_send(&g_uart_config, buf);
+
+	net_buf_unref(buf);
+
+	return err;
+}
+
 int nih_rpc_send_event(struct net_buf *buf, uint16_t opcode)
 {
+	LOG_DBG("op %x", opcode);
 	net_buf_push_le16(buf, opcode);
 	net_buf_push_u8(buf, RPC_TYPE_EVT);
 
@@ -80,16 +95,35 @@ void nih_rpc_register_evt_handlers(nih_rpc_handler_t handlers[], size_t num)
 static int rpc_handle_buf(struct net_buf *buf)
 {
 	uint8_t type = net_buf_pull_u8(buf);
+
 	__ASSERT(type < RPC_TYPE_MAX, "Unkown packet type");
 	__ASSERT(type != RPC_TYPE_RSP, "Target -> PC command direction not yet supported");
 
 	uint16_t op = net_buf_pull_le16(buf);
 
+	LOG_DBG("Got type %x opcode %x", type, op);
+
 	switch (type) {
+		case RPC_TYPE_INIT:
+			LOG_INF("got init pkt");
+			return 0;
+		case RPC_TYPE_ACK:
+			LOG_INF("got ack for op %x", op);
+			return 0;
 		case RPC_TYPE_CMD:
 			__ASSERT(rpc_cmd_handlers, "No registered command handlers");
 			__ASSERT(rpc_cmd_handlers[op], "No registered command handler for opcode %x", op);
-			return rpc_cmd_handlers[op](buf);
+
+			int ret = rpc_cmd_handlers[op](buf);
+			if (ret) {
+				LOG_ERR("Handler for %x returned %d", op, ret);
+			}
+
+			struct net_buf *rsp_buf = nih_rpc_alloc_buf(10);
+
+			net_buf_push_u8(rsp_buf, ret);
+
+			return nih_rpc_send_rsp(rsp_buf, op);
 		case RPC_TYPE_EVT:
 			__ASSERT(rpc_evt_handlers, "No registered event handlers");
 			__ASSERT(rpc_evt_handlers[op], "No registered event handler for opcode %x", op);
@@ -107,8 +141,17 @@ int sys_init_rpc(void)
 	g_uart_config.packet = &g_data[0];
 	g_uart_config.header = &g_uart_header;
 	g_uart_config.ringbuf = &g_ringbuf;
+	g_uart_config.uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_rpc_uart));
 
-	return nih_rpc_uart_init(&g_uart_config);
+	int err = nih_rpc_uart_init(&g_uart_config);
+	if (err) {
+		return err;
+	}
+
+	struct net_buf *buf = nih_rpc_alloc_buf(10);
+
+	/* send init event */
+	return nih_rpc_send_init(buf);
 }
 
 SYS_INIT(sys_init_rpc, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
@@ -119,6 +162,7 @@ static inline void cleanup_state(struct nih_rpc_uart *config)
 {
 	LOG_DBG("");
 	memset(config->header, 0, sizeof(struct nih_rpc_uart_header));
+	config->idx = 0;
 }
 
 static void process_ringbuf(struct nih_rpc_uart *uart_config);

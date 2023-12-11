@@ -20,7 +20,7 @@ enum event_opcodes {
 };
 
 enum cmd_opcodes {
-	RPC_CMD_BT_ADVERTISE,
+	RPC_CMD_BT_ADVERTISE = 0x01,
 	RPC_CMD_BT_SCAN,
 	RPC_CMD_BT_SCAN_STOP,
 	RPC_CMD_BT_CONNECT,

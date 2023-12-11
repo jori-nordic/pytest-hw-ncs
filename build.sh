@@ -9,7 +9,7 @@ set -e
 TEST_LIST_FILE=build/testlist.txt
 ZEPHYR_BOARDS=('nrf52840dk_nrf52840')
 
-rm -rf build || true
+# rm -rf build || true
 mkdir -p build
 
 pytest --collect-only "$@" | grep Module | sed -E 's/<Module (.*)>/\1/' > "$TEST_LIST_FILE"
