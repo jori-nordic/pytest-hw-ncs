@@ -33,6 +33,9 @@ This allows the use of a debugger during the test run.')
     parser.addoption("--tester-family", action="store",
                      help='specify a device (nrf52, nrf53) family for the Tester.')
 
+    parser.addoption("--split", action="store_true",
+                     help="some help")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def devkits(request):
@@ -67,6 +70,7 @@ def flasheddevices(request):
     devconf = request.config.getoption("--devconf")
     dut_family = request.config.getoption("--dut-family")
     tester_family = request.config.getoption("--tester-family")
+    split = request.config.getoption("--split")
 
     # Select the devices families
     if dut_family is None:
@@ -77,6 +81,7 @@ def flasheddevices(request):
 
     # Select the actual devices
     dut_id = None
+    dut_1_id = None
     tester_id = None
     if devconf is not None:
         LOGGER.info(f'Using devconf: {devconf}')
@@ -92,6 +97,12 @@ def flasheddevices(request):
 
         register_dk(Devkit(dut_id, dut_family, dut_name))
         assert dut_id, 'DUT not found in configuration'
+
+        dut_1_name = config['dut_1_' + dut_family]
+        dut_1_id = get_device_by_name(devices, dut_1_name)['segger']
+
+        register_dk(Devkit(dut_1_id, dut_family, dut_1_name))
+        assert dut_1_id, 'DUT 1 not found in configuration'
 
         tester_name = config['tester_' + tester_family]
         tester_id = get_device_by_name(devices, tester_name)['segger']
@@ -111,6 +122,16 @@ def flasheddevices(request):
                           board=get_board_by_family(dut_family),
                           flash_device=flash,
                           emu=emu))
+
+        if split:
+            dut_dk_1 = stack.enter_context(
+                FlashedDevice(request,
+                              name='DUT 1',
+                              family=dut_family,
+                              id=dut_1_id,
+                              board=get_board_by_family(dut_family),
+                              flash_device=flash,
+                              emu=emu))
 
         tester_dk = stack.enter_context(
             FlashedDevice(request,
