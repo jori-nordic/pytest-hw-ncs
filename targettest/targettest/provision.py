@@ -41,13 +41,19 @@ def extract_net_hex(merged_hex, output_hex):
     net = ih[0x1000000:]
     net.write_hex_file(str(output_hex))
 
-def get_fw_path(suite, board, network_core=None):
+def get_fw_path(suite, board, hci_uart=False, network_core=None):
     """Find the firmware for the calling test suite"""
     root_dir = pathlib.Path(suite.config.rootdir)
     script_path = pathlib.Path(getattr(suite.module, "__file__"))
     rel_suite_path = script_path.parent.relative_to(root_dir)
 
-    fw_build = root_dir / 'build' / rel_suite_path / board
+    if suite.config.getoption("--split"):
+        if hci_uart:
+            fw_build = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
+        else:
+            fw_build = root_dir / 'build' / rel_suite_path / board / 'fw'
+    else:
+        fw_build = root_dir / 'build' / rel_suite_path / board
 
     if network_core is None:
         fw_hex = fw_build / 'zephyr' / 'zephyr.hex'
@@ -72,14 +78,16 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpu
     if name is not None:
         dev.name = name
 
+    use_hci_uart = name == "DUT 1"
+
     if flash_device:
         # Flash device with test FW & reset it
         if family == 'NRF53':
             # Flash the network core first
-            fw_hex = get_fw_path(request, board, network_core=True)
+            fw_hex = get_fw_path(request, board, hci_uart=use_hci_uart, network_core=True)
             flash(dev.segger_id, dev.family, fw_hex, core='NET')
 
-        fw_hex = get_fw_path(request, board)
+        fw_hex = get_fw_path(request, board, hci_uart=use_hci_uart)
         flash(dev.segger_id, dev.family, fw_hex)
 
         reset(dev.segger_id, dev.family)
