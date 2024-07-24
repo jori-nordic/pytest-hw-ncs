@@ -253,7 +253,7 @@ Goal: run tests written for this framework on zephyr platforms from different ve
 
 - [x] integrate sysbuild into build.sh
 - [x] run on latest NCS
-- [ ] run on latest zephyr
+- [x] run on latest zephyr
 - [ ] run with board from any other vendor
 - [ ] make platform description schema (platform.yml)
 - [ ] make it possible to flash+log+run without segger emulator
