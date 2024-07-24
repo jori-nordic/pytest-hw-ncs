@@ -183,11 +183,29 @@ class Devkit:
             halt(self.segger_id, self.family, self.emu)
 
 
-def get_serial_port(id):
+def get_serial_port(id, family=None, api=None):
+    def _get_serial_port(id, family):
+        ports = api.enum_emu_com_ports(id)
+
+        LOGGER.debug(f'[{id}] Serial ports: {ports}')
+
+        # TODO: add better rules depending on family
+        # Probably in a platform.yml describing those
+
+        if family == 'nrf53':
+            # Will get the last serial port. This is connected to the APP core
+            # on nRF53 DKs.
+            sorted_ports = sorted(ports, key=lambda port: port.vcom)
+            return ports[-1].path
+        else:
+            return ports[0].path
+
+    if api is not None:
+        return _get_serial_port(id, family)
+
     with SeggerEmulator() as api:
-        # Will get the last serial port. This is connected to the APP core
-        # on nRF53 DKs.
-        return api.enum_emu_com_ports(id)[-1].path
+        family = api.read_device_family()
+        return _get_serial_port(id, family)
 
 def flash(id, family, hex_path, core='APP', reset=True):
     with SeggerDevice(family, id, core) as cpu:
@@ -233,7 +251,7 @@ def discover_dks():
         for id in ids:
             api.connect_to_emu_with_snr(id)
             family = api.read_device_family()
-            port = api.enum_emu_com_ports(id)[-1].path
+            port = get_serial_port(id, family, api)
             devkits.append(
                 Devkit(id, family, f'dk-{family}-{id}', port))
             api.disconnect_from_emu()
