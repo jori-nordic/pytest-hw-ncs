@@ -221,31 +221,28 @@ Pytest ends the test suite:
 
 ## Communications
 
-### nRF RPC + CBOR
+### NIH RPC
 
 It is possible for the python test script to call test functions defined in the firmware.
-This happens using the [nRF RPC](https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/nrfxlib/nrf_rpc/README.html) library, communicating over UART (serial port).
+This happens using the `nih_rpc` library, communicating over UART (serial port).
 Similarly, it is possible to receive events from the device.
 
-The parameters (or event data) are encoded in the [CBOR](https://cbor.io/) serialization format, using the [ZCBOR](https://github.com/NordicSemiconductor/zcbor/) library.
+The format is roughly: type, opcode, RPC metadata, payload (serialized-struct).
 
-The format is roughly: type, opcode, nRF RPC metadata, cbor-encoded data
-
-The opcode is a byte, and the IDs used in the firmware and in the test script need to match. It is recommended to use enums to that effect.
+The opcode is a byte, and the IDs used in the firmware and in the test script
+need to match. It is recommended to use enums to that effect.
 
 ### Calling functions on target
 
-Due to a limitation in nRF RPC, we cannot use the CMD packet type, and instead have to use the EVT packet type, which is asynchronous (non-blocking). EVT packets will still block until an ACK packet is received from the other side.
-
-- `RPCChannel.evt()`: send an event without any data to the device.
-- `RPCChannel.evt_cbor()`: send an event with encoded data (or parameters) to the device.
+`RPCChannel.cmd()`: send a command (with optional parameters) to the device.
 
 ### Getting data from the target
 
-Events that are emitted on target are stored in a python [Queue](https://docs.python.org/3/library/queue.html) in a FIFO manner.
+Events that are emitted on target are stored in a python
+[Queue](https://docs.python.org/3/library/queue.html) in a FIFO manner.
 
-- `RPCChannel.get_evt()`: get an event from the device. No decoding will be done if it contains a data payload.
-- `RPCChannel.get_evt_cbor()`: get an event from the device. A tuple is returned, containing the raw event and its decoded payload.
+`RPCChannel.get_evt()`: get an event from the device. A tuple is returned,
+containing the raw event and its decoded payload.
 
 # TODO
 
@@ -257,8 +254,9 @@ Goal: run tests written for this framework on zephyr platforms from different ve
 - [ ] run with board from any other vendor
 - [ ] make platform description schema (platform.yml)
 - [ ] make it possible to flash+log+run without segger emulator
-- [ ] describe nih_rpc
-- [ ] fix most TODOs in nih_rpc
+- [x] describe nih_rpc
+- [x] fix most TODOs in nih_rpc
+- [ ] use async-uart for nih_rpc
 - [ ] write Bluetooth stress test
 - [ ] make pytest understand the platform test matrix
 - [ ] make pytest build the firmware

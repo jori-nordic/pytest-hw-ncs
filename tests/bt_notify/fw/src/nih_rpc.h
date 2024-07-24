@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 /* TODO: naming n stuff */
-#ifndef NRF_RPC_UART_H_
-#define NRF_RPC_UART_H_
+#ifndef NIH_RPC_UART_H_
+#define NIH_RPC_UART_H_
 
 #include <zephyr/device.h>
 
@@ -69,4 +69,4 @@ int nih_rpc_send_rsp(struct net_buf *buf, uint16_t opcode);
 int nih_rpc_send_event(struct net_buf *buf, uint16_t opcode);
 struct net_buf *nih_rpc_alloc_buf(size_t size);
 
-#endif /* NRF_RPC_UART_H_ */
+#endif /* NIH_RPC_UART_H_ */

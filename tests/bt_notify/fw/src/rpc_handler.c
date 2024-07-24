@@ -16,8 +16,6 @@
 
 #include "test_rpc_opcodes.h"
 
-// TODO: Use a buf pool depending on evt size
-
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(rpc_handler, 3);
@@ -68,7 +66,7 @@ static int handler_connect(struct net_buf *buf)
 
 	struct bt_conn *conn;
 
-	// TODO: does this leak? conn ref
+	// TODO: does this leak? conn ref. Make a test for it.
 	int err = bt_conn_le_create(&p->peer, &params, BT_LE_CONN_PARAM_DEFAULT, &conn);
 	LOG_INF("bt_conn_le_create (%d)", err);
 
@@ -96,8 +94,6 @@ static int handler_advertise(struct net_buf *buf)
 
 	return err;
 }
-
-// TODO: add __packed for all wire structs
 
 /* The event contains this + the `ad` data */
 struct evt_device_found {

@@ -110,6 +110,11 @@ static int rpc_handle_buf(struct net_buf *buf)
 			LOG_INF("got init pkt");
 			return 0;
 		case RPC_TYPE_ACK:
+			/* TODO: retry logic? or delay freeing the evt buffer
+			 * until the ACK is received. Most likely, flow control
+			 * in the target->pc direction will not be necessary or
+			 * will rather happen on the UART layer.
+			 */
 			LOG_INF("got ack for op %x", op);
 			return 0;
 		case RPC_TYPE_CMD:
@@ -350,8 +355,6 @@ static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf)
 
 	LOG_DBG("Sending %u bytes", length);
 	LOG_HEXDUMP_DBG(buf->data, length, "Data: ");
-
-	/* TODO: use async instead of poll-out, push header on netbuf */
 
 	/* Add UART transport header */
 	uart_poll_out(uart_config->uart, 'U');

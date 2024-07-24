@@ -33,14 +33,11 @@ class RPCChannel():
 
     def handler(self, packet: RPCPacket):
         LOGGER.debug(f'Handling {packet}')
-        # TODO: terminate session on ERR packets
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
             self.transport.clear_buffers()
             self.clear_events()
 
-            # Mark channel as usable and send INIT response
-            self.send_init()
             self.established = True
             LOGGER.debug(f'[{self.transport}] channel established')
 
@@ -71,7 +68,7 @@ class RPCChannel():
         self.handler_lut[packet_type][opcode] = packet_handler
 
     def ack(self, opcode: int):
-        # TODO: add event index or document in order
+        # ACKs should always be sent in the same order the events were received
         packet = RPCPacket(RPCPacketType.ACK, opcode, payload=b'')
 
         self.transport.send(packet.raw)
@@ -106,7 +103,3 @@ class RPCChannel():
             decoded = event.decode(schema)
 
         return event, decoded
-
-    def send_init(self):
-        # TODO: implement
-        pass
