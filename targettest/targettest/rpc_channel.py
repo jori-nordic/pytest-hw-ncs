@@ -76,21 +76,6 @@ class RPCChannel():
 
         self.transport.send(packet.raw)
 
-    def evt(self, opcode: int, data: bytes=b'', timeout=5):
-        packet = RPCPacket(RPCPacketType.EVT, opcode, payload=data)
-        self._ack = (None, opcode)
-
-        self.transport.send(packet.raw)
-
-        end_time = time.monotonic() + timeout
-        while self._ack[0] is None:
-            time.sleep(.01)
-            if time.monotonic() > end_time:
-                raise Exception('Async command timeout')
-
-        # Return packet containing the ACK
-        return self._ack[1]
-
     def cmd(self, opcode: int, data: dict or bytes = b'', timeout=5):
         packet = RPCPacket(RPCPacketType.CMD, opcode, payload=data)
         self._rsp = None

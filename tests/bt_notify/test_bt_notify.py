@@ -28,13 +28,11 @@ class RPCCmds(enum.IntEnum):
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
     LOGGER.info("Configure adv")
-    # rpcdevice.evt(RPCEvents.BT_ADVERTISE)
     rpcdevice.cmd(RPCCmds.BT_ADVERTISE)
 
 def configure_scanner(rpcdevice):
     # configure & start scanner
     LOGGER.info("Configure scan")
-    # rpcdevice.evt_cbor(RPCEvents.BT_SCAN, -50)
     rpcdevice.cmd(RPCCmds.BT_SCAN, {'rssi_threshold': ('<b', -120)})
 
 def connect(rpcdevice, addr: bytes):
@@ -92,12 +90,7 @@ class TestBluetooth():
         peripheral.cmd(RPCCmds.BT_ADVERTISE)
         central.cmd(RPCCmds.BT_SCAN, {'rssi_threshold': ('<b', -60)})
 
-        # Pull out the demo event we don't care about
-        # event = peripheral.get_evt(timeout=10)
-        # assert event.opcode == RPCEvents.DEMO_NESTED_LIST
-
         # Wait for the first scan report
-        # event, payload = central.get_evt_cbor(timeout=10)
         schema = {'addr': ('<7s', None), 'rssi': ('<b', None), 'type': ('<B', None), 'ad_length': ('<H', None)}
         event, decoded = central.get_evt(schema=schema, timeout=10)
         assert event is not None
