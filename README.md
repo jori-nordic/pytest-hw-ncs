@@ -246,3 +246,20 @@ Events that are emitted on target are stored in a python [Queue](https://docs.py
 
 - `RPCChannel.get_evt()`: get an event from the device. No decoding will be done if it contains a data payload.
 - `RPCChannel.get_evt_cbor()`: get an event from the device. A tuple is returned, containing the raw event and its decoded payload.
+
+# TODO
+
+Goal: run tests written for this framework on zephyr platforms from different vendors.
+
+- [x] integrate sysbuild into build.sh
+- [x] run on latest NCS
+- [ ] run on latest zephyr
+- [ ] run with board from any other vendor
+- [ ] make platform description schema (platform.yml)
+- [ ] make it possible to flash+log+run without segger emulator
+- [ ] describe nih_rpc
+- [ ] fix most TODOs in nih_rpc
+- [ ] write Bluetooth stress test
+- [ ] make pytest understand the platform test matrix
+- [ ] make pytest build the firmware
+- [ ] support for split-build (ie hci_uart or ipc as precompiled .hex)
