@@ -35,39 +35,31 @@ def get_available_dk(family, id=None):
 def get_dk_list():
     return devkits
 
-def extract_net_hex(merged_hex, output_hex):
-    """Writes a new ihex file containing only the nRF53 network core's FW."""
-    ih = IntelHex(str(merged_hex))
-    net = ih[0x1000000:]
-    net.write_hex_file(str(output_hex))
-
 def get_fw_path(suite, board, hci_uart=False, network_core=None):
     """Find the firmware for the calling test suite"""
     root_dir = pathlib.Path(suite.config.rootdir)
     script_path = pathlib.Path(getattr(suite.module, "__file__"))
     rel_suite_path = script_path.parent.relative_to(root_dir)
 
-    if suite.config.getoption("--split"):
-        if hci_uart:
-            build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
-        else:
-            build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
-    else:
-        build_dir = root_dir / 'build' / rel_suite_path / board
+    # This assumes all multi-image builds are built using sysbuild
 
-    if network_core is None:
-        fw_hex = build_dir / 'zephyr' / 'zephyr.hex'
+    if suite.config.getoption("--split") and hci_uart:
+        # TODO: use a more explicit option than just "split"
+        # like, --harness-type=hci_uart or --harness-type=hci_ipc etc
+        build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
+    elif network_core is not None:
+        build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_ipc'
     else:
-        merged_hex = build_dir / 'zephyr' / 'merged_domains.hex'
-        fw_hex = build_dir / 'zephyr' / 'network.hex'
-        extract_net_hex(merged_hex, fw_hex)
+        build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
 
-    assert fw_hex.exists(), "Missing firmware"
+    fw_hex = build_dir / 'zephyr' / 'zephyr.hex'
+
+    assert fw_hex.exists(), f"Missing firmware: {fw_hex}"
 
     return fw_hex
 
 @contextmanager
-def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk_nrf5340_cpuapp', name=None, flash_device=True, emu=True):
+def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk/nrf5340/cpuapp', name=None, flash_device=True, emu=True):
     # Select HW device
     dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'

@@ -59,9 +59,9 @@ def get_device_by_name(devices, name):
 
 def get_board_by_family(family: str):
     if family.upper() == 'NRF52':
-        return 'nrf52840dk_nrf52840'
+        return 'nrf52840dk/nrf52840'
     else:
-        return 'nrf5340dk_nrf5340_cpuapp'
+        return 'nrf5340dk/nrf5340/cpuapp'
 
 @pytest.fixture(scope="class")
 def flasheddevices(request):
