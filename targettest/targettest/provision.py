@@ -49,20 +49,20 @@ def get_fw_path(suite, board, hci_uart=False, network_core=None):
 
     if suite.config.getoption("--split"):
         if hci_uart:
-            fw_build = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
+            build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
         else:
-            fw_build = root_dir / 'build' / rel_suite_path / board / 'fw'
+            build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
     else:
-        fw_build = root_dir / 'build' / rel_suite_path / board
+        build_dir = root_dir / 'build' / rel_suite_path / board
 
     if network_core is None:
-        fw_hex = fw_build / 'zephyr' / 'zephyr.hex'
+        fw_hex = build_dir / 'zephyr' / 'zephyr.hex'
     else:
-        merged_hex = fw_build / 'zephyr' / 'merged_domains.hex'
-        fw_hex = fw_build / 'zephyr' / 'network.hex'
+        merged_hex = build_dir / 'zephyr' / 'merged_domains.hex'
+        fw_hex = build_dir / 'zephyr' / 'network.hex'
         extract_net_hex(merged_hex, fw_hex)
 
-    assert fw_build.exists(), "Missing firmware"
+    assert fw_hex.exists(), "Missing firmware"
 
     return fw_hex
 
