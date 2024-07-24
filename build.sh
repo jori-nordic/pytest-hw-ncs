@@ -7,7 +7,7 @@
 set -e
 
 TEST_LIST_FILE=build/testlist.txt
-ZEPHYR_BOARDS=('nrf52840dk/nrf52840')
+ZEPHYR_BOARDS=('nrf52840dk/nrf52840' 'nrf5340dk/nrf5340/cpuapp')
 
 # rm -rf build || true
 mkdir -p build
