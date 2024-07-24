@@ -34,6 +34,8 @@ struct net_buf *nih_rpc_alloc_buf(size_t size)
 {
 	struct net_buf *buf = net_buf_alloc(&rpc_pool, K_SECONDS(1));
 
+	__ASSERT_NO_MSG(buf->size >= size);
+
 	if (buf) {
 		net_buf_reserve(buf, NIH_RPC_BUF_RESERVE);
 	}

@@ -24,7 +24,6 @@ LOG_MODULE_REGISTER(rpc_handler, 3);
 
 void evt_ready(void)
 {
-	/* TODO: don't forget net_buf_reserve() inside to fit header */
 	struct net_buf *buf = nih_rpc_alloc_buf(100);
 
 	/* This event doesn't have any data. */
