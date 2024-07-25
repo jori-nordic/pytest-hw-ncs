@@ -33,7 +33,10 @@ This allows the use of a debugger during the test run.')
     parser.addoption("--tester-family", action="store",
                      help='specify a device (nrf52, nrf53) family for the Tester.')
 
-    parser.addoption("--split", action="store_true",
+    parser.addoption("--no-rtt", action="store_true",
+                     help="Disable use of Segger RTT for logging")
+
+    parser.addoption("--single-device", action="store_true",
                      help="some help")
 
 
@@ -41,6 +44,7 @@ This allows the use of a debugger during the test run.')
 def devkits(request):
     # Don't discover devices if devconf was specified on cli
     devconf = request.config.getoption("--devconf")
+    rtt_logging = not request.config.getoption("--no-rtt")
     if devconf is not None:
         return
 
@@ -48,6 +52,7 @@ def devkits(request):
     devkits = discover_dks()
     LOGGER.info(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
     for devkit in devkits:
+        devkit.rtt_logging = rtt_logging
         register_dk(devkit)
 
 def get_device_by_name(devices, name):
@@ -65,12 +70,14 @@ def get_board_by_family(family: str):
 
 @pytest.fixture(scope="class")
 def flasheddevices(request):
+    # TODO: refactor for an arbitrary number of devices (1->n)
     flash = not request.config.getoption("--no-flash")
     emu = not request.config.getoption("--no-emu")
     devconf = request.config.getoption("--devconf")
     dut_family = request.config.getoption("--dut-family")
     tester_family = request.config.getoption("--tester-family")
-    split = request.config.getoption("--split")
+    single_device = request.config.getoption("--single-device")
+    rtt_logging = not request.config.getoption("--no-rtt")
 
     # Select the devices families
     if dut_family is None:
@@ -81,7 +88,6 @@ def flasheddevices(request):
 
     # Select the actual devices
     dut_id = None
-    dut_1_id = None
     tester_id = None
     if devconf is not None:
         LOGGER.info(f'Using devconf: {devconf}')
@@ -95,19 +101,13 @@ def flasheddevices(request):
         dut_name = config['dut_' + dut_family]
         dut_id = get_device_by_name(devices, dut_name)['segger']
 
-        register_dk(Devkit(dut_id, dut_family, dut_name))
+        register_dk(Devkit(dut_id, dut_family, dut_name, rtt_logging=rtt_logging))
         assert dut_id, 'DUT not found in configuration'
-
-        dut_1_name = config['dut_1_' + dut_family]
-        dut_1_id = get_device_by_name(devices, dut_1_name)['segger']
-
-        register_dk(Devkit(dut_1_id, dut_family, dut_1_name))
-        assert dut_1_id, 'DUT 1 not found in configuration'
 
         tester_name = config['tester_' + tester_family]
         tester_id = get_device_by_name(devices, tester_name)['segger']
 
-        register_dk(Devkit(tester_id, tester_family, tester_name))
+        register_dk(Devkit(tester_id, tester_family, tester_name, rtt_logging=rtt_logging))
         assert tester_id, 'Tester not found in configuration'
 
         LOGGER.info(f'DUT: {dut_id} Tester: {tester_id}')
@@ -123,24 +123,17 @@ def flasheddevices(request):
                           flash_device=flash,
                           emu=emu))
 
-        if split:
-            dut_dk_1 = stack.enter_context(
+        if not single_device:
+            tester_dk = stack.enter_context(
                 FlashedDevice(request,
-                              name='DUT 1',
-                              family=dut_family,
-                              id=dut_1_id,
-                              board=get_board_by_family(dut_family),
-                              flash_device=flash,
-                              emu=emu))
-
-        tester_dk = stack.enter_context(
-            FlashedDevice(request,
-                          name='Tester',
-                          family=tester_family,
-                          id=tester_id,
-                          board=get_board_by_family(tester_family),
-                          flash_device=flash,
-                          emu=emu))
+                            name='Tester',
+                            family=tester_family,
+                            id=tester_id,
+                            board=get_board_by_family(tester_family),
+                            flash_device=flash,
+                            emu=emu))
+        else:
+            tester_dk = None
 
         devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
         halt_unused(get_dk_list())
@@ -148,6 +141,34 @@ def flasheddevices(request):
         yield devices
 
         LOGGER.debug('closing DK APIs')
+
+
+@pytest.fixture()
+def testdevice(flasheddevices):
+    with ExitStack() as stack:
+        try:
+            dut_dk = flasheddevices['dut_dk']
+
+            # TODO: what about --no-emu. Does it mean only halt the first device?
+
+            LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
+            dut_rpc = stack.enter_context(RPCDevice(dut_dk))
+            dut = TestDevice(dut_dk, dut_rpc)
+
+            devices = {'dut': dut}
+            LOGGER.info(f'Test device: {devices}')
+
+            yield devices
+
+            # Flush logs.
+            # TODO: either namespace RPC cmds or add special packet
+            dut.rpc.cmd(7)
+
+        finally:
+            LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
+
+            LOGGER.debug('closing RPC channels')
+
 
 @pytest.fixture()
 def testdevices(flasheddevices):
@@ -168,6 +189,11 @@ def testdevices(flasheddevices):
             LOGGER.info(f'Test devices: {devices}')
 
             yield devices
+
+            # Flush logs.
+            # TODO: either namespace RPC cmds or add special packet
+            dut.rpc.cmd(7)
+            tester.rpc.cmd(7)
 
         finally:
             LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')

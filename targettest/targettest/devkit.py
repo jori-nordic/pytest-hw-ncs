@@ -103,11 +103,12 @@ class RTTLogger(threading.Thread):
 
 
 class Devkit:
-    def __init__(self, id, family, name, port=None):
+    def __init__(self, id, family, name, port=None, rtt_logging=True):
         self.emu = None
         self.segger_id = int(id)
         self.family = family.upper()
         self.port = port
+        self.rtt_logging = rtt_logging
 
         self.name = name
         self.in_use = False
@@ -123,7 +124,7 @@ class Devkit:
     def start_logging(self):
         self.log = ''
 
-        if self.emu is None:
+        if not self.rtt_logging:
             LOGGER.debug(f'[{self.segger_id}] skipping log setup')
             return
 
@@ -138,7 +139,7 @@ class Devkit:
         LOGGER.debug(f'[{self.segger_id}] logging started')
 
     def stop_logging(self):
-        if self.emu is None:
+        if not self.rtt_logging:
             LOGGER.debug(f'[{self.segger_id}] skipping log teardown')
             return
 
@@ -158,6 +159,8 @@ class Devkit:
         if open_emu:
             self.apiobject = SeggerDevice(self.family, self.segger_id)
             self.emu = self.apiobject.__enter__()
+        else:
+            self.rtt_logging = False
 
     def close(self):
         LOGGER.debug(f'[{self.segger_id}] devkit close')

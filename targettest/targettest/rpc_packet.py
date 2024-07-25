@@ -14,11 +14,13 @@ LOGGER = logging.getLogger(__name__)
 
 class RPCPacketType(enum.IntEnum):
     INIT = 0
+    INITRSP = enum.auto()
     CMD = enum.auto()
     RSP = enum.auto()
     EVT = enum.auto()
     ACK = enum.auto()
     ERR = enum.auto()
+    LOG = enum.auto()
 
 
 def _encode(data: dict):

@@ -18,7 +18,7 @@ int main(void)
 
 	register_handlers();
 
-	printk("evt_ready sent\n");
+	evt_ready();
 
 	return 0;
 }

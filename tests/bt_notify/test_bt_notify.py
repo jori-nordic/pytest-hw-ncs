@@ -23,6 +23,7 @@ class RPCCmds(enum.IntEnum):
     BT_SCAN_STOP = enum.auto()
     BT_CONNECT = enum.auto()
     BT_DISCONNECT = enum.auto()
+    K_FLUSH_LOGS = enum.auto()
     K_OOPS = enum.auto()
 
 def configure_advertiser(rpcdevice):
@@ -59,6 +60,12 @@ def scanner(testdevices):
 
 
 class TestBluetooth():
+
+    def test_single(self, testdevice):
+        LOGGER.info("Single-device advertising test")
+        assert len(testdevice) == 1
+
+        configure_advertiser(testdevice['dut'].rpc)
 
     def test_boot(self, testdevices):
         LOGGER.info("Boot test")

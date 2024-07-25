@@ -26,7 +26,12 @@ enum cmd_opcodes {
 	RPC_CMD_BT_DISCONNECT,
 
 	RPC_CMD_K_OOPS,
+	RPC_CMD_FLUSH_LOGS,
 	RPC_CMD_MAX,
 };
+
+/* Hardcoded in the python side */
+BUILD_ASSERT(RPC_EVENT_READY == 1);
+BUILD_ASSERT(RPC_CMD_FLUSH_LOGS == 7);
 
 #endif /* RPC_OPCODES_H_ */

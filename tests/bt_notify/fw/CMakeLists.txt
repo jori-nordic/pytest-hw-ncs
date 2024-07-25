@@ -12,6 +12,7 @@ target_sources(app PRIVATE
   src/main.c
   src/rpc_handler.c
   src/nih_rpc.c
+  src/nih_rpc_log_backend.c
 )
 
 # Needed for rpc_opcodes.h

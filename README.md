@@ -1,5 +1,10 @@
 # Pytest-based embedded testing framework
 
+# WARNING
+
+This branch IS NOT READY YET! DO NOT USE!
+Also I force-push all the time :)
+
 # What is it
 
 This is an example test framework for testing embedded applications on the nRF52 and nRF53 platforms.
@@ -243,6 +248,19 @@ Events that are emitted on target are stored in a python
 
 `RPCChannel.get_evt()`: get an event from the device. A tuple is returned,
 containing the raw event and its decoded payload.
+
+# Other boards
+
+What do we need to run the framework on other boards?
+
+- Flash hex
+- select serial
+- remove dep on RTT
+  - make nih_rpc log backend
+
+- method to discover board (opt)
+  - find serial port for RPC+log
+  - find endpoint to flash to
 
 # TODO
 

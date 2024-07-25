@@ -43,7 +43,7 @@ def get_fw_path(suite, board, hci_uart=False, network_core=None):
 
     # This assumes all multi-image builds are built using sysbuild
 
-    if suite.config.getoption("--split") and hci_uart:
+    if hci_uart:
         # TODO: use a more explicit option than just "split"
         # like, --harness-type=hci_uart or --harness-type=hci_ipc etc
         build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
@@ -82,6 +82,7 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk/nrf5340/cpu
         fw_hex = get_fw_path(request, board, hci_uart=use_hci_uart)
         flash(dev.segger_id, dev.family, fw_hex)
 
+        # TODO: maybe halt instead? At least try to reduce number of reset calls
         reset(dev.segger_id, dev.family)
 
     dev.open(open_emu=emu)
@@ -92,11 +93,11 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk/nrf5340/cpu
 
 
 @contextmanager
-def RPCDevice(device: Devkit, group='nrf_pytest'):
+def RPCDevice(device: Devkit, rtt_logging=True):
     try:
         # Manage RPC transport
         uart = UARTRPCChannel(port=device.port)
-        channel = RPCChannel(uart)
+        channel = RPCChannel(uart, log_handler=device.log_handler)
         uart.open()
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
@@ -109,6 +110,14 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
             time.sleep(.01)
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
+
+        # Wait for the READY event (sent from main) This is a user-defined
+        # event, it's not part of the nrf-rpc init sequence. We _have_ to wait
+        # for it, as the rpc command handlers are installed from the main
+        # thread, which happens after NIH-RPC is initialized on-device.
+        event = channel.get_evt(opcode=0x01)
+
+        LOGGER.info(f'[{device.port}] channel ready: evt {event}')
 
         yield channel
 

@@ -143,7 +143,12 @@ class UARTRPCChannel(PacketTransport):
             # Header has been decoded
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
-                packet = RPCPacket.unpack(data)
+                try:
+                    packet = RPCPacket.unpack(data)
+                except Exception as e:
+                    LOGGER.error(f'Failed to decode packet: {data}')
+                    raise e
+
                 self.packet_handler(packet)
 
                 # Consume the data in the RX buffer

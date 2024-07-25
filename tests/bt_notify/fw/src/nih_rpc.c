@@ -17,7 +17,10 @@
 
 #include <zephyr/logging/log.h>
 
-LOG_MODULE_REGISTER(nih_rpc, 4);
+/* the NIH-RPC logging backend will not be enabled if logging is enabled here
+ * Unless you have unlimited stack of course.
+ */
+LOG_MODULE_REGISTER(nih_rpc, NIH_RPC_LOG_LEVEL);
 
 // TODO: Use a buf pool depending on evt size
 NET_BUF_POOL_DEFINE(rpc_pool, 50, 2048, 0, NULL);
@@ -45,11 +48,22 @@ struct net_buf *nih_rpc_alloc_buf(size_t size)
 
 static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf);
 
+/* TODO: clean this up */
+static volatile bool _available = false;
+bool nih_rpc_is_available(void)
+{
+	return _available;
+}
+
 int nih_rpc_send_rsp(struct net_buf *buf, uint16_t opcode)
 {
 	LOG_DBG("op %x", opcode);
 	net_buf_push_le16(buf, opcode);
 	net_buf_push_u8(buf, RPC_TYPE_RSP);
+
+	if (!nih_rpc_is_available()) {
+		LOG_ERR("RPC not initialized. Can't send RSP");
+	}
 
 	int err = transport_send(&g_uart_config, buf);
 
@@ -71,6 +85,19 @@ static int nih_rpc_send_init(struct net_buf *buf)
 	return err;
 }
 
+static int nih_rpc_send_initrsp(struct net_buf *buf)
+{
+	LOG_DBG("send init rsp pkt");
+	net_buf_push_le16(buf, 0x1337);
+	net_buf_push_u8(buf, RPC_TYPE_INITRSP);
+
+	int err = transport_send(&g_uart_config, buf);
+
+	net_buf_unref(buf);
+
+	return err;
+}
+
 int nih_rpc_send_event(struct net_buf *buf, uint16_t opcode)
 {
 	LOG_DBG("op %x", opcode);
@@ -84,18 +111,33 @@ int nih_rpc_send_event(struct net_buf *buf, uint16_t opcode)
 	return err;
 }
 
+int nih_rpc_send_log(struct net_buf *buf)
+{
+	net_buf_push_le16(buf, 0); /* not used for now. Could be used for level? */
+	net_buf_push_u8(buf, RPC_TYPE_LOG);
+
+	int err = transport_send(&g_uart_config, buf);
+
+	net_buf_unref(buf);
+
+	return err;
+}
+
 void nih_rpc_register_cmd_handlers(nih_rpc_handler_t handlers[], size_t num)
 {
 	rpc_cmd_handlers = handlers;
 }
 
+/* TODO: remove unused code */
 void nih_rpc_register_evt_handlers(nih_rpc_handler_t handlers[], size_t num)
 {
 	rpc_evt_handlers = handlers;
 }
 
-static int rpc_handle_buf(struct net_buf *buf)
+static int rpc_handle_buf(struct net_buf *buf, struct nih_rpc_uart *uart_config)
 {
+	struct net_buf *rsp_buf;
+
 	uint8_t type = net_buf_pull_u8(buf);
 
 	__ASSERT(type < RPC_TYPE_MAX, "Unkown packet type");
@@ -106,9 +148,18 @@ static int rpc_handle_buf(struct net_buf *buf)
 	LOG_DBG("Got type %x opcode %x", type, op);
 
 	switch (type) {
-		case RPC_TYPE_INIT:
-			LOG_INF("got init pkt");
+		case RPC_TYPE_INITRSP:
+			LOG_INF("got init rsp pkt. channel is now open.");
+			uart_config->state = NSTATE_INITIALIZED;
+			_available = true;
+
 			return 0;
+		case RPC_TYPE_INIT:
+			LOG_INF("got init rsp pkt. sending ACK.");
+
+			rsp_buf = nih_rpc_alloc_buf(10);
+
+			return nih_rpc_send_initrsp(rsp_buf);
 		case RPC_TYPE_ACK:
 			/* TODO: retry logic? or delay freeing the evt buffer
 			 * until the ACK is received. Most likely, flow control
@@ -121,12 +172,14 @@ static int rpc_handle_buf(struct net_buf *buf)
 			__ASSERT(rpc_cmd_handlers, "No registered command handlers");
 			__ASSERT(rpc_cmd_handlers[op], "No registered command handler for opcode %x", op);
 
+			LOG_INF("got cmd for op %x", op);
+
 			int ret = rpc_cmd_handlers[op](buf);
 			if (ret) {
 				LOG_ERR("Handler for %x returned %d", op, ret);
 			}
 
-			struct net_buf *rsp_buf = nih_rpc_alloc_buf(10);
+			rsp_buf = nih_rpc_alloc_buf(10);
 
 			net_buf_push_u8(rsp_buf, ret);
 
@@ -149,6 +202,8 @@ int sys_init_rpc(void)
 	g_uart_config.header = &g_uart_header;
 	g_uart_config.ringbuf = &g_ringbuf;
 	g_uart_config.uart = DEVICE_DT_GET(DT_CHOSEN(zephyr_rpc_uart));
+
+	g_uart_config.state = NSTATE_UNINITIALIZED;
 
 	int err = nih_rpc_uart_init(&g_uart_config);
 	if (err) {
@@ -184,7 +239,7 @@ static void rpc_tr_uart_handler(struct k_work *item)
 
 	struct nih_rpc_uart_header *header = uart_config->header;
 
-	__ASSERT_NO_MSG(uart_config->used);
+	__ASSERT_NO_MSG(uart_config->state != NSTATE_UNINITIALIZED);
 
 	ring_buf_get(uart_config->ringbuf, uart_config->packet, header->len);
 	LOG_HEXDUMP_DBG(uart_config->packet, header->len, "packet");
@@ -198,7 +253,7 @@ static void rpc_tr_uart_handler(struct k_work *item)
 	 * boundary, and nrf-rpc can't handle that, it expects a single linear
 	 * array.
 	 */
-	rpc_handle_buf(&buf);
+	rpc_handle_buf(&buf, uart_config);
 	LOG_DBG("rx cb returned");
 	cleanup_state(uart_config);
 
@@ -321,7 +376,7 @@ static int nih_rpc_uart_init(struct nih_rpc_uart *uart_config)
 
 	k_work_init(&uart_config->work, rpc_tr_uart_handler);
 
-	if (uart_config->used) {
+	if (uart_config->state != NSTATE_UNINITIALIZED) {
 		return 0;
 	}
 
@@ -331,7 +386,7 @@ static int nih_rpc_uart_init(struct nih_rpc_uart *uart_config)
 		return -EAGAIN;
 	}
 
-	uart_config->used = true;
+	uart_config->state = NSTATE_INITIALIZING;
 
 	uart_irq_callback_user_data_set(uart_config->uart,
 					serial_cb,
@@ -348,7 +403,7 @@ static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf)
 	LOG_DBG("");
 	uint16_t length = buf->len;
 
-	if (!uart_config->used) {
+	if (uart_config->state == NSTATE_UNINITIALIZED) {
 		LOG_ERR("nRF RPC transport is not initialized");
 		return -ENOTCONN;
 	}

@@ -13,10 +13,11 @@ LOGGER = logging.getLogger(__name__)
 
 
 class RPCChannel():
-    def __init__(self, transport: PacketTransport, default_packet_handler=None):
+    def __init__(self, transport: PacketTransport, default_packet_handler=None, log_handler=None):
         # A valid transport has to be initialized first
         self.transport = transport
         self.transport.packet_handler = self.handler
+        self.device_log_handler = log_handler
 
         self.established = False
 
@@ -38,6 +39,14 @@ class RPCChannel():
             self.transport.clear_buffers()
             self.clear_events()
 
+            self.send_init()
+
+        elif packet.packet_type == RPCPacketType.INITRSP:
+            self.transport.clear_buffers()
+            self.clear_events()
+
+            self.send_initrsp()
+
             self.established = True
             LOGGER.debug(f'[{self.transport}] channel established')
 
@@ -54,6 +63,14 @@ class RPCChannel():
             # We just assume only one command can be in-flight at a time
             # Should be enough for testing, can be extended later.
             self._rsp = packet
+
+        elif packet.packet_type == RPCPacketType.LOG:
+            if self.device_log_handler is not None:
+                try:
+                    self.device_log_handler(packet.payload.decode())
+                except UnicodeDecodeError:
+                    LOGGER.debug(f'[{self.transport}] dropping malformed log packet')
+            return
 
         elif self.handler_exists(packet):
             self.lookup(packet)(self, packet)
@@ -77,6 +94,9 @@ class RPCChannel():
         packet = RPCPacket(RPCPacketType.CMD, opcode, payload=data)
         self._rsp = None
 
+        while not self.established:
+            time.sleep(.01)
+
         self.transport.send(packet.raw)
 
         end_time = time.monotonic() + timeout
@@ -95,11 +115,23 @@ class RPCChannel():
         event = None
         decoded = None
 
-        # TODO: add filtering by opcode
-        if opcode is None:
+        if opcode is not None:
+            # TODO: add filtering by opcode
+            event = self.events.get(timeout=timeout)
+        else:
             event = self.events.get(timeout=timeout)
 
         if schema:
             decoded = event.decode(schema)
 
         return event, decoded
+
+    def send_init(self):
+        packet = RPCPacket(RPCPacketType.INIT, 0, payload=b'')
+
+        self.transport.send(packet.raw)
+
+    def send_initrsp(self):
+        packet = RPCPacket(RPCPacketType.INITRSP, 0, payload=b'')
+
+        self.transport.send(packet.raw)

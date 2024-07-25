@@ -17,6 +17,7 @@
 #include "test_rpc_opcodes.h"
 
 #include <zephyr/logging/log.h>
+#include <zephyr/logging/log_ctrl.h>
 
 LOG_MODULE_REGISTER(rpc_handler, 3);
 
@@ -220,11 +221,22 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 	.connected = connected,
 };
 
+/* TODO: make this a system command */
+static int handler_flush_logs(struct net_buf *buf)
+{
+	LOG_DBG("");
+
+	while (log_process());
+
+	return 0;
+}
+
 void register_handlers(void)
 {
 	static nih_rpc_handler_t cmd_handlers[RPC_CMD_MAX];
 
 	cmd_handlers[RPC_CMD_BT_ADVERTISE] = handler_advertise;
+	cmd_handlers[RPC_CMD_FLUSH_LOGS] = handler_flush_logs;
 	cmd_handlers[RPC_CMD_BT_SCAN] = handler_scan_start;
 	cmd_handlers[RPC_CMD_BT_SCAN_STOP] = handler_scan_stop;
 	cmd_handlers[RPC_CMD_BT_CONNECT] = handler_connect;
