@@ -40,18 +40,34 @@ This allows the use of a debugger during the test run.')
                      help="some help")
 
 
+def get_device_list_from_devconf(devconf):
+    LOGGER.info(f'Using devconf: {devconf}')
+    with open(devconf, 'r') as stream:
+        # Assuming only one config per devconf file
+        parsed = yaml.safe_load(stream)
+
+    devices = parsed['devices']
+
+    return devices
+
 @pytest.fixture(scope="session", autouse=True)
 def devkits(request):
     # Don't discover devices if devconf was specified on cli
     devconf = request.config.getoption("--devconf")
-    rtt_logging = not request.config.getoption("--no-rtt")
     if devconf is not None:
-        return
+        LOGGER.info(f'Getting devices from devconf')
+        dk_list = get_device_list_from_devconf(devconf)
+    else:
+        LOGGER.info(f'Discovering devices...')
+        dk_list = None
 
-    LOGGER.info(f'Discovering devices...')
-    devkits = discover_dks()
-    LOGGER.info(f'Available devices: {[devkit.segger_id for devkit in devkits]}')
-    for devkit in devkits:
+    dks = discover_dks(dk_list)
+
+    LOGGER.info(f'Registering devices: {[devkit.segger_id for devkit in dks]}')
+
+    rtt_logging = not request.config.getoption("--no-rtt")
+
+    for devkit in dks:
         devkit.rtt_logging = rtt_logging
         register_dk(devkit)
 
@@ -89,8 +105,8 @@ def flasheddevices(request):
     # Select the actual devices
     dut_id = None
     tester_id = None
+
     if devconf is not None:
-        LOGGER.info(f'Using devconf: {devconf}')
         with open(devconf, 'r') as stream:
             # Assuming only one config per devconf file
             parsed = yaml.safe_load(stream)
@@ -100,14 +116,10 @@ def flasheddevices(request):
 
         dut_name = config['dut_' + dut_family]
         dut_id = get_device_by_name(devices, dut_name)['segger']
-
-        register_dk(Devkit(dut_id, dut_family, dut_name, rtt_logging=rtt_logging))
         assert dut_id, 'DUT not found in configuration'
 
         tester_name = config['tester_' + tester_family]
         tester_id = get_device_by_name(devices, tester_name)['segger']
-
-        register_dk(Devkit(tester_id, tester_family, tester_name, rtt_logging=rtt_logging))
         assert tester_id, 'Tester not found in configuration'
 
         LOGGER.info(f'DUT: {dut_id} Tester: {tester_id}')

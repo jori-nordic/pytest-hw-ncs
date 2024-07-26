@@ -192,6 +192,8 @@ def get_serial_port(id, family=None, api=None):
 
         LOGGER.debug(f'[{id}] Serial ports: {ports}')
 
+        assert len(ports) > 0, f"[{id}] is not connected"
+
         # TODO: add better rules depending on family
         # Probably in a platform.yml describing those
 
@@ -203,12 +205,9 @@ def get_serial_port(id, family=None, api=None):
         else:
             return ports[0].path
 
-    if api is not None:
-        return _get_serial_port(id, family)
+    assert api is not None
 
-    with SeggerEmulator() as api:
-        family = api.read_device_family()
-        return _get_serial_port(id, family)
+    return _get_serial_port(id, family)
 
 def flash(id, family, hex_path, core='APP', reset=True):
     with SeggerDevice(family, id, core) as cpu:
@@ -247,7 +246,22 @@ def halt_unused(devkits: list):
     for dk in unused:
         halt(dk.segger_id, dk.family)
 
-def discover_dks():
+
+
+def discover_dks(device_list=None):
+    # device_list: list of dicts with name, id, family
+    if device_list is not None:
+        devkits = []
+        with SeggerEmulator() as api:
+            for device in device_list:
+                family = device['family'].upper()
+                id = int(device['segger'])
+                port = get_serial_port(id, family, api)
+                devkits.append(
+                    Devkit(id, family, f'dk-{family}-{id}', port))
+
+        return devkits
+
     with SeggerEmulator() as api:
         ids = api.enum_emu_snr()
         devkits = []
