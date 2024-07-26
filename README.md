@@ -261,3 +261,4 @@ Goal: run tests written for this framework on zephyr platforms from different ve
 - [ ] make pytest understand the platform test matrix
 - [ ] make pytest build the firmware
 - [ ] support for split-build (ie hci_uart or ipc as precompiled .hex)
+- [ ] clean-up architecture. or at least document w/ diagram.

@@ -110,13 +110,6 @@ def RPCDevice(device: Devkit, group='nrf_pytest'):
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
-        if 0:
-            # Wait for the READY event (sent from main)
-            # This is a user-defined event, it's not part of the nrf-rpc init sequence.
-            event = channel.get_evt()
-            assert event.opcode == 0x01
-            LOGGER.info(f'[{device.port}] channel ready')
-
         yield channel
 
     finally:
