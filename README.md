@@ -253,10 +253,10 @@ containing the raw event and its decoded payload.
 
 What do we need to run the framework on other boards?
 
-- Flash hex
-- select serial
-- remove dep on RTT
-  - make nih_rpc log backend
+- get firmware
+- flash firmware
+- set-up OOB logging (doesn't have to be over RTT)
+- set-up NIH-RPC channel (doesn't have to be over UART)
 
 - method to discover board (opt)
   - find serial port for RPC+log
@@ -282,3 +282,5 @@ Goal: run tests written for this framework on zephyr platforms from different ve
 - [ ] clean-up architecture. or at least document w/ diagram.
 - [x] initialize Devkit() objects from only one place (and time)
 - [ ] fix up INITRSP / READY-event business
+  - could just initialize NIH-RPC from main()
+- [ ] namespace for System RPC events
