@@ -67,6 +67,9 @@ struct nih_rpc_uart {
 	/* packet buffer: stores only the packet to be sent to nRF RPC */
 	char *packet;
 
+	/* Thread-safety */
+	struct k_mutex mutex;
+
 	/* Dispatches callbacks into nRF RPC */
 	struct k_work work;
 };

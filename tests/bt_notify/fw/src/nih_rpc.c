@@ -205,6 +205,8 @@ int sys_init_rpc(void)
 
 	g_uart_config.state = NSTATE_UNINITIALIZED;
 
+	k_mutex_init(&g_uart_config.mutex);
+
 	int err = nih_rpc_uart_init(&g_uart_config);
 	if (err) {
 		return err;
@@ -408,6 +410,12 @@ static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf)
 		return -ENOTCONN;
 	}
 
+	/* FIXME: is this safe if called from the syswq with a UART driver that
+	 * somehow executes stuff on the syswq?
+	 */
+	int err = k_mutex_lock(&uart_config->mutex, K_FOREVER);
+	__ASSERT_NO_MSG(!err);
+
 	LOG_DBG("Sending %u bytes", length);
 	LOG_HEXDUMP_DBG(buf->data, length, "Data: ");
 
@@ -427,6 +435,9 @@ static int transport_send(struct nih_rpc_uart *uart_config, struct net_buf *buf)
 	}
 
 	LOG_DBG("exit");
+
+	err = k_mutex_unlock(&uart_config->mutex);
+	__ASSERT_NO_MSG(!err);
 
 	return 0;
 }
