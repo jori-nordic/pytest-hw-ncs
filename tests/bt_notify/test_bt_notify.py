@@ -23,8 +23,8 @@ class RPCCmds(enum.IntEnum):
     BT_SCAN_STOP = enum.auto()
     BT_CONNECT = enum.auto()
     BT_DISCONNECT = enum.auto()
-    K_FLUSH_LOGS = enum.auto()
     K_OOPS = enum.auto()
+    K_FLUSH_LOGS = enum.auto()
 
 def configure_advertiser(rpcdevice):
     # configure & start advertiser with static name
@@ -67,16 +67,16 @@ class TestBluetooth():
 
         configure_advertiser(testdevice['dut'].rpc)
 
-    def test_boot(self, testdevices):
-        LOGGER.info("Boot test")
-        assert len(testdevices) == 2
-
-    def test_trigger_oops(self, testdevices):
+    def test_trigger_oops(self, testdevice):
         LOGGER.info("k_oops test")
         # Trigger a kernel panic
         with pytest.raises(Exception):
             # Will raise a comm failure because the device will be unresponsive
-            testdevices['dut'].rpc.cmd(RPCCmds.K_OOPS)
+            testdevice['dut'].rpc.cmd(RPCCmds.K_OOPS)
+
+    def test_boot(self, testdevices):
+        LOGGER.info("Boot test")
+        assert len(testdevices) == 2
 
     def test_scan(self, advertiser, scanner):
         LOGGER.info("Scan test")
