@@ -85,6 +85,10 @@ int nih_rpc_send_log(struct net_buf *buf);
 bool nih_rpc_is_available(void);
 struct net_buf *nih_rpc_alloc_buf(size_t size);
 
+#if defined(CONFIG_LOG_BACKEND_RTT)
+#define NIH_RPC_LOG_LEVEL 3
+#else
 #define NIH_RPC_LOG_LEVEL 0
+#endif
 
 #endif /* NIH_RPC_UART_H_ */

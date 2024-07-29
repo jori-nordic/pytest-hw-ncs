@@ -182,6 +182,8 @@ static int rpc_handle_buf(struct net_buf *buf, struct nih_rpc_uart *uart_config)
 
 			net_buf_push_u8(rsp_buf, ret);
 
+			LOG_INF("sending rsp %d for op %d", ret, op);
+
 			return nih_rpc_send_rsp(rsp_buf, op);
 		case RPC_TYPE_EVT:
 			__ASSERT(rpc_evt_handlers, "No registered event handlers");
