@@ -9,6 +9,9 @@ import logging
 from contextlib import contextmanager
 from pynrfjprog import LowLevel, APIError
 from pynrfjprog import Parameters
+from targettest.rtt_logger import RTTLogger
+from targettest.rpc_logger import RPCLogger
+from targettest.abstract_logger import TargetLogger
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,91 +65,25 @@ def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
         LOGGER.debug(f'[{id}] jlink closed')
 
 
-class RTTLogger(threading.Thread):
-    def __init__(self, emu, handler):
-        threading.Thread.__init__(self, daemon=True)
-        self._stop_rx_flag = threading.Event() # Used to cleanly stop the RX thread
-        self.ready = False
-        self.handler = handler
-        self.emu = emu
-
-    def run(self):
-        LOGGER.debug(f'RTT start')
-        self._stop_rx_flag.clear()
-
-        LOGGER.debug(f'RTT search...')
-        self.emu.rtt_start()
-        while not (self.emu.rtt_is_control_block_found() or
-                   self._stop_rx_flag.is_set()):
-            time.sleep(.1)
-
-        self.ready = True
-
-        LOGGER.debug(f'RTT opened')
-        while not self._stop_rx_flag.is_set():
-            recv = self.emu.rtt_read(0, 255)
-            if len(recv) > 0:
-                self.handler(recv)
-
-            # Yield to other threads
-            time.sleep(.01)
-
-        LOGGER.debug(f'RTT stop')
-        self.emu.rtt_stop()
-
-    def open(self):
-        self.start()
-
-    def close(self):
-        self._stop_rx_flag.set()
-        self.join()
-
-
 class Devkit:
-    def __init__(self, id, family, name, port=None, rtt_logging=True):
+    def __init__(self, id, family, name, port=None, target_logger_class=TargetLogger):
         self.emu = None
         self.segger_id = int(id)
         self.family = family.upper()
         self.port = port
-        self.rtt_logging = rtt_logging
 
         self.name = name
         self.in_use = False
 
         self.log = ''
+        self._target_logger_class = target_logger_class
+        self.target_logger = None
 
     def __repr__(self):
         return f'{self.name}: {self.segger_id} {self.port} '
 
     def log_handler(self, rx: str):
         self.log += rx
-
-    def start_logging(self):
-        self.log = ''
-
-        if not self.rtt_logging:
-            LOGGER.debug(f'[{self.segger_id}] skipping log setup')
-            return
-
-        self.rtt = RTTLogger(self.emu, self.log_handler)
-        self.rtt.start()
-        end_time = time.monotonic() + 15
-        while not self.rtt.ready:
-            time.sleep(.1)
-            if time.monotonic() > end_time:
-                raise Exception('Unable to start logging')
-
-        LOGGER.debug(f'[{self.segger_id}] logging started')
-
-    def stop_logging(self):
-        if not self.rtt_logging:
-            LOGGER.debug(f'[{self.segger_id}] skipping log teardown')
-            return
-
-        try:
-            self.rtt.close()
-        finally:
-            LOGGER.debug(f'[{self.segger_id}] logging stopped')
 
     def open(self, open_emu):
         LOGGER.debug(f'[{self.segger_id}] devkit open')
@@ -156,18 +93,44 @@ class Devkit:
         if self.port is None:
             self.port = get_serial_port(self.segger_id)
 
+        # Rest of setup involves the Segger ICE
         if open_emu:
             self.apiobject = SeggerDevice(self.family, self.segger_id)
             self.emu = self.apiobject.__enter__()
-        else:
-            self.rtt_logging = False
+
+        self.in_use = True
 
     def close(self):
         LOGGER.debug(f'[{self.segger_id}] devkit close')
-        self.in_use = False
 
         if self.emu is not None:
             self.apiobject.__exit__(None, None, None)
+
+        self.in_use = False
+
+    def open_log(self):
+        self.log = ''
+
+        if self._target_logger_class is RTTLogger:
+            # TODO: figure out a better place and time for this. We need an
+            # already open segger emulator, so finding the correct place to
+            # initialize is not trivial.
+            self.target_logger = self._target_logger_class(output_handler=self.log_handler,
+                                                           id=self.segger_id,
+                                                           emulator=self.emu)
+        elif self._target_logger_class is RPCLogger:
+            # In the log-over-RPC case, we don't need special parameters:
+            # NIH-RPC will directly call the Devkit() log handler function when
+            # LOG packets are received.
+            self.target_logger = self._target_logger_class(output_handler=self.log_handler)
+        else:
+            raise Exception(f"Logger class {self.target_logger} not supported")
+
+        self.target_logger.open()
+
+    def close_log(self):
+        if self.target_logger is not None:
+            self.target_logger.close()
 
     def available(self):
         return not self.in_use
@@ -246,9 +209,11 @@ def halt_unused(devkits: list):
     for dk in unused:
         halt(dk.segger_id, dk.family)
 
-
-
-def discover_dks(device_list=None):
+def discover_dks(device_list=None, target_logger_class=TargetLogger):
+    # TODO: maybe discover_dks should rather return a dict instead of
+    # registering full-blown Devkit() objects. That way, the caller can register
+    # those, and register the target logger too.
+    #
     # device_list: list of dicts with name, id, family
     if device_list is not None:
         devkits = []
@@ -258,7 +223,7 @@ def discover_dks(device_list=None):
                 id = int(device['segger'])
                 port = get_serial_port(id, family, api)
                 devkits.append(
-                    Devkit(id, family, f'dk-{family}-{id}', port))
+                    Devkit(id, family, f'dk-{family}-{id}', port, target_logger_class))
 
         return devkits
 
@@ -270,7 +235,7 @@ def discover_dks(device_list=None):
             family = api.read_device_family()
             port = get_serial_port(id, family, api)
             devkits.append(
-                Devkit(id, family, f'dk-{family}-{id}', port))
+                Devkit(id, family, f'dk-{family}-{id}', port, target_logger_class))
             api.disconnect_from_emu()
 
     return devkits

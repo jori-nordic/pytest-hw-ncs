@@ -7,6 +7,8 @@ import pytest
 import yaml
 import logging
 from contextlib import ExitStack
+from targettest.rtt_logger import RTTLogger
+from targettest.rpc_logger import RPCLogger
 from targettest.devkit import Devkit, discover_dks, halt_unused
 from targettest.provision import (register_dk, get_dk_list,
                                   FlashedDevice, RPCDevice, TestDevice)
@@ -50,6 +52,18 @@ def get_device_list_from_devconf(devconf):
 
     return devices
 
+def get_logger_type(request):
+    rtt = not request.config.getoption("--no-rtt")
+
+    if rtt:
+        type = RTTLogger
+    else:
+        type = RPCLogger
+
+    LOGGER.debug(f'Using logger type: {type}')
+
+    return type
+
 @pytest.fixture(scope="session", autouse=True)
 def devkits(request):
     # Don't discover devices if devconf was specified on cli
@@ -61,14 +75,11 @@ def devkits(request):
         LOGGER.info(f'Discovering devices...')
         dk_list = None
 
-    dks = discover_dks(dk_list)
+    dks = discover_dks(dk_list, get_logger_type(request))
 
     LOGGER.info(f'Registering devices: {[devkit.segger_id for devkit in dks]}')
 
-    rtt_logging = not request.config.getoption("--no-rtt")
-
     for devkit in dks:
-        devkit.rtt_logging = rtt_logging
         register_dk(devkit)
 
 def get_device_by_name(devices, name):

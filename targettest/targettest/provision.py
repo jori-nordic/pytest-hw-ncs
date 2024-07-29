@@ -93,7 +93,13 @@ def FlashedDevice(request, family='NRF53', id=None, board='nrf5340dk/nrf5340/cpu
 
 
 @contextmanager
-def RPCDevice(device: Devkit, rtt_logging=True):
+def RPCDevice(device: Devkit):
+    """A device that has:
+       - an established NIH-RPC transport
+         - means RPC command handlers are registered on target
+       - a target logger backend
+       - a device management API (reset/halt/etc)
+    """
     try:
         # Manage RPC transport
         uart = UARTRPCChannel(port=device.port)
@@ -102,7 +108,7 @@ def RPCDevice(device: Devkit, rtt_logging=True):
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
         device.reset()
-        device.start_logging()
+        device.open_log()
 
         # Wait until we have received the handshake/init packet
         end_time = time.monotonic() + 5
@@ -118,7 +124,7 @@ def RPCDevice(device: Devkit, rtt_logging=True):
     finally:
         LOGGER.info(f'[{device.port}] closing channel')
         uart.close()
-        device.stop_logging()
+        device.close_log()
         device.halt()
 
 
