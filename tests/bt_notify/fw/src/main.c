@@ -6,9 +6,11 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <nih_rpc.h>
 
 void evt_ready(void);
 extern void register_handlers(void);
+
 int main(void)
 {
 	printk("RPC testing app started [APP Core].\n");
@@ -18,7 +20,9 @@ int main(void)
 
 	register_handlers();
 
-	evt_ready();
+	nih_rpc_init();
+
+	printk("RPC initialized\n");
 
 	return 0;
 }

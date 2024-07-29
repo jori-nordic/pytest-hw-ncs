@@ -6,7 +6,6 @@
 #include <errno.h>
 #include <string.h>
 
-#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/uart.h>
@@ -196,7 +195,7 @@ static int rpc_handle_buf(struct net_buf *buf, struct nih_rpc_uart *uart_config)
 
 static int nih_rpc_uart_init(struct nih_rpc_uart *uart_config);
 
-int sys_init_rpc(void)
+int nih_rpc_init(void)
 {
 	g_uart_config.packet = &g_data[0];
 	g_uart_config.header = &g_uart_header;
@@ -217,8 +216,6 @@ int sys_init_rpc(void)
 	/* send init event */
 	return nih_rpc_send_init(buf);
 }
-
-SYS_INIT(sys_init_rpc, POST_KERNEL, CONFIG_APPLICATION_INIT_PRIORITY);
 
 /* BIG ASS COMMENT ******************************************************************************************************************************** */
 

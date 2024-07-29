@@ -111,13 +111,7 @@ def RPCDevice(device: Devkit, rtt_logging=True):
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
-        # Wait for the READY event (sent from main) This is a user-defined
-        # event, it's not part of the nrf-rpc init sequence. We _have_ to wait
-        # for it, as the rpc command handlers are installed from the main
-        # thread, which happens after NIH-RPC is initialized on-device.
-        event = channel.get_evt(opcode=0x01)
-
-        LOGGER.info(f'[{device.port}] channel ready: evt {event}')
+        LOGGER.info(f'[{device.port}] channel ready')
 
         yield channel
 

@@ -76,6 +76,7 @@ struct nih_rpc_uart {
 
 typedef int (*nih_rpc_handler_t)(struct net_buf *buf);
 
+int nih_rpc_init(void);
 void nih_rpc_register_cmd_handlers(nih_rpc_handler_t handlers[], size_t num);
 void nih_rpc_register_evt_handlers(nih_rpc_handler_t handlers[], size_t num);
 int nih_rpc_send_rsp(struct net_buf *buf, uint16_t opcode);
