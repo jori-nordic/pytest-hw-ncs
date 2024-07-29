@@ -183,9 +183,12 @@ def testdevice(flasheddevices):
 
             yield devices
 
-            # Flush logs.
+            # Flush logs. Device might be unresponsive.
             # TODO: either namespace RPC cmds or add special packet
-            dut.rpc.cmd(7)
+            try:
+                dut.rpc.cmd(7)
+            except:
+                pass
 
         finally:
             LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
@@ -215,8 +218,11 @@ def testdevices(flasheddevices):
 
             # Flush logs.
             # TODO: either namespace RPC cmds or add special packet
-            dut.rpc.cmd(7)
-            tester.rpc.cmd(7)
+            try:
+                dut.rpc.cmd(7)
+                tester.rpc.cmd(7)
+            except:
+                pass
 
         finally:
             LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
