@@ -50,8 +50,9 @@ static int _out(uint8_t *data, size_t length, void *ctx)
 	}
 
 	if (!nih_rpc_is_available()) {
-		/* discard lines until we are initialized */
+		/* don't output lines until we are initialized */
 		net_buf_unref(buf);
+		length = 0;
 		goto end;
 	}
 
