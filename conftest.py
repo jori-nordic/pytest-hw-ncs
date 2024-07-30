@@ -39,8 +39,8 @@ This allows the use of a debugger during the test run.')
     parser.addoption("--no-rtt", action="store_true",
                      help="Disable use of Segger RTT for logging")
 
-    parser.addoption("--single-device", action="store_true",
-                     help="some help")
+    parser.addoption("--num-testers", action="store",
+                     help="Number of tester devices to provision")
 
 
 def get_device_list_from_devconf(devconf):
@@ -190,65 +190,56 @@ def flasheddevices(request):
     devconf = request.config.getoption("--devconf")
     dut_family = request.config.getoption("--dut-family")
     tester_family = request.config.getoption("--tester-family")
-    single_device = request.config.getoption("--single-device")
+    num_testers_str = request.config.getoption("--num-testers")
     rtt_logging = not request.config.getoption("--no-rtt")
     root_dir = pathlib.Path(request.config.rootdir)
     # This builds a path from the tests' file names
     # E.g. `test_bt_notify.py` -> `tests/bt_notify/`
     test_path = pathlib.Path(getattr(request.module, "__file__"))
 
-    if single_device:
-        num_testers = 0
-    else:
+    # sad.jpg
+    try:
+        num_testers = int(num_testers_str)
+    except:
         num_testers = 1
 
     with make_flasheddevices(root_dir, test_path, flash, emu, devconf, dut_family, tester_family, num_testers, rtt_logging) as devices:
         yield devices
 
 
-@pytest.fixture()
-def testdevice(flasheddevices):
+@contextmanager
+def make_testdevices(request, flasheddevices, num_testers):
+    """Return a ready-to-use hardware configuration.
+
+    I.e. a list of devices that:
+    - are flashed (only once per-class)
+    - have an established RPC connection
+    - have a connected log sink
+
+    There is always at least one device, the "DUT", optionally followed by a
+    bunch of "Tester" devices.
+
+    The DUT fixture should be parameterized such that each testcase that uses
+    the `testdevices` fixture runs once per DUT platform/parameter.
+
+    The Testers fixture is not parameterized, but we can still choose its
+    platform using a command line option.
+    """
+
+    dut_dk = flasheddevices['dut_dk']
+    tester_dks = flasheddevices['tester_dks']
+
+    assert len(tester_dks) >= num_testers, "Not enough testers have been flashed"
+
     with ExitStack() as stack:
         try:
-            dut_dk = flasheddevices['dut_dk']
-
-            # TODO: what about --no-emu. Does it mean only halt the first device?
-
-            LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
-            dut_rpc = stack.enter_context(RPCDevice(dut_dk))
-            dut = TestDevice(dut_dk, dut_rpc)
-
-            devices = {'dut': dut}
-            LOGGER.info(f'Test device: {devices}')
-
-            yield devices
-
-            # Flush logs. Device might be unresponsive.
-            # TODO: either namespace RPC cmds or add special packet
-            try:
-                dut.rpc.cmd(7)
-            except:
-                pass
-
-        finally:
-            LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
-
-            LOGGER.debug('closing RPC channels')
-
-
-@pytest.fixture()
-def testdevices(flasheddevices):
-    with ExitStack() as stack:
-        try:
-            dut_dk = flasheddevices['dut_dk']
-            tester_dks = flasheddevices['tester_dks']
-
             LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
             dut_rpc = stack.enter_context(RPCDevice(dut_dk))
             dut = TestDevice(dut_dk, dut_rpc)
 
             testers = []
-            for tester_dk in tester_dks:
+            for i in range(num_testers):
+                tester_dk = tester_dks[i]
                 LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
                 tester_rpc = stack.enter_context(RPCDevice(tester_dk))
                 tester = TestDevice(tester_dk, tester_rpc)
@@ -274,3 +265,14 @@ def testdevices(flasheddevices):
                 LOGGER.info(f'[{tester.dk.segger_id}] Tester logs:\n{tester.dk.log}')
 
             LOGGER.debug('closing RPC channels')
+
+
+@pytest.fixture()
+def testdevice(request, flasheddevices):
+    with make_testdevices(request, flasheddevices, num_testers=0) as devices:
+        yield devices
+
+@pytest.fixture()
+def testdevices(request, flasheddevices):
+    with make_testdevices(request, flasheddevices, num_testers=1) as devices:
+        yield devices

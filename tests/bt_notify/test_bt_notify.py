@@ -55,15 +55,23 @@ def advertiser(testdevices):
 
 @pytest.fixture
 def scanner(testdevices):
-    configure_scanner(testdevices['tester'].rpc)
-    return testdevices['tester']
+    tester = testdevices['testers'][0]
+    configure_scanner(tester.rpc)
+
+    return tester
+
+
+# class TestMulti():
+#     def test_multi_boot(self, harness_multi_link):
+#         LOGGER.info(f"Got {len(testdevices)} devices")
+#         assert len(testdevices) == 3
 
 
 class TestBluetooth():
 
     def test_single(self, testdevice):
         LOGGER.info("Single-device advertising test")
-        assert len(testdevice) == 1
+        assert len(testdevice['testers']) == 0
 
         configure_advertiser(testdevice['dut'].rpc)
 
@@ -76,7 +84,7 @@ class TestBluetooth():
 
     def test_boot(self, testdevices):
         LOGGER.info("Boot test")
-        assert len(testdevices) == 2
+        assert len(testdevices['testers']) == 1
 
     def test_scan(self, advertiser, scanner):
         LOGGER.info("Scan test")
@@ -91,7 +99,7 @@ class TestBluetooth():
 
     def test_conn(self, testdevices):
         peripheral = testdevices['dut'].rpc
-        central = testdevices['tester'].rpc
+        central = testdevices['testers'][0].rpc
 
         # Configure an advertiser and a scanner
         peripheral.cmd(RPCCmds.BT_ADVERTISE)
