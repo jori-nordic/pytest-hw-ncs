@@ -6,7 +6,8 @@
 import pytest
 import yaml
 import logging
-from contextlib import ExitStack
+import pathlib
+from contextlib import ExitStack, contextmanager
 from targettest.rtt_logger import RTTLogger
 from targettest.rpc_logger import RPCLogger
 from targettest.devkit import Devkit, discover_dks, halt_unused
@@ -95,17 +96,16 @@ def get_board_by_family(family: str):
     else:
         return 'nrf5340dk/nrf5340/cpuapp'
 
-@pytest.fixture(scope="class")
-def flasheddevices(request):
-    # TODO: refactor for an arbitrary number of devices (1->n)
-    flash = not request.config.getoption("--no-flash")
-    emu = not request.config.getoption("--no-emu")
-    devconf = request.config.getoption("--devconf")
-    dut_family = request.config.getoption("--dut-family")
-    tester_family = request.config.getoption("--tester-family")
-    single_device = request.config.getoption("--single-device")
-    rtt_logging = not request.config.getoption("--no-rtt")
-
+@contextmanager
+def make_flasheddevices(root_dir,
+                        test_path,
+                        flash,
+                        emu,
+                        devconf,
+                        dut_family,
+                        tester_family,
+                        single_device,
+                        rtt_logging):
     # Select the devices families
     if dut_family is None:
         dut_family = 'nrf53'
@@ -138,7 +138,8 @@ def flasheddevices(request):
     # ExitStack is equivalent to multiple nested `with` statements, but is more readable
     with ExitStack() as stack:
         dut_dk = stack.enter_context(
-            FlashedDevice(request,
+            FlashedDevice(root_dir,
+                          test_path,
                           name='DUT',
                           family=dut_family,
                           id=dut_id,
@@ -148,13 +149,14 @@ def flasheddevices(request):
 
         if not single_device:
             tester_dk = stack.enter_context(
-                FlashedDevice(request,
-                            name='Tester',
-                            family=tester_family,
-                            id=tester_id,
-                            board=get_board_by_family(tester_family),
-                            flash_device=flash,
-                            emu=emu))
+                FlashedDevice(root_dir,
+                              test_path,
+                              name='Tester',
+                              family=tester_family,
+                              id=tester_id,
+                              board=get_board_by_family(tester_family),
+                              flash_device=flash,
+                              emu=emu))
         else:
             tester_dk = None
 
@@ -164,6 +166,25 @@ def flasheddevices(request):
         yield devices
 
         LOGGER.debug('closing DK APIs')
+
+
+@pytest.fixture(scope="class")
+def flasheddevices(request):
+    # TODO: refactor for an arbitrary number of devices (1->n)
+    flash = not request.config.getoption("--no-flash")
+    emu = not request.config.getoption("--no-emu")
+    devconf = request.config.getoption("--devconf")
+    dut_family = request.config.getoption("--dut-family")
+    tester_family = request.config.getoption("--tester-family")
+    single_device = request.config.getoption("--single-device")
+    rtt_logging = not request.config.getoption("--no-rtt")
+    root_dir = pathlib.Path(request.config.rootdir)
+    # This builds a path from the tests' file names
+    # E.g. `test_bt_notify.py` -> `tests/bt_notify/`
+    test_path = pathlib.Path(getattr(request.module, "__file__"))
+
+    with make_flasheddevices(root_dir, test_path, flash, emu, devconf, dut_family, tester_family, single_device, rtt_logging) as devices:
+        yield devices
 
 
 @pytest.fixture()
