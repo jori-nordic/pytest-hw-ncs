@@ -250,39 +250,31 @@ def make_testdevices(request, flasheddevices, num_testers):
     assert len(tester_dks) >= num_testers, "Not enough testers have been flashed"
 
     with ExitStack() as stack:
+        LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
+        dut_rpc = stack.enter_context(RPCDevice(dut_dk))
+        dut = TestDevice(dut_dk, dut_rpc)
+
+        testers = []
+        for i in range(num_testers):
+            tester_dk = tester_dks[i]
+            LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
+            tester_rpc = stack.enter_context(RPCDevice(tester_dk))
+            tester = TestDevice(tester_dk, tester_rpc)
+            testers.append(tester)
+
+        devices = {'dut': dut, 'testers': testers}
+        LOGGER.info(f'Test devices: {devices}')
+
+        yield devices
+
+        # Flush logs.
+        # TODO: either namespace RPC cmds or add special packet
         try:
-            LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
-            dut_rpc = stack.enter_context(RPCDevice(dut_dk))
-            dut = TestDevice(dut_dk, dut_rpc)
-
-            testers = []
-            for i in range(num_testers):
-                tester_dk = tester_dks[i]
-                LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
-                tester_rpc = stack.enter_context(RPCDevice(tester_dk))
-                tester = TestDevice(tester_dk, tester_rpc)
-                testers.append(tester)
-
-            devices = {'dut': dut, 'testers': testers}
-            LOGGER.info(f'Test devices: {devices}')
-
-            yield devices
-
-            # Flush logs.
-            # TODO: either namespace RPC cmds or add special packet
-            try:
-                dut.rpc.cmd(7)
-                for tester in testers:
-                    tester.rpc.cmd(7)
-            except:
-                pass
-
-        finally:
-            LOGGER.info(f'[{dut.dk.segger_id}] DUT logs:\n{dut.dk.log}')
+            dut.rpc.cmd(7)
             for tester in testers:
-                LOGGER.info(f'[{tester.dk.segger_id}] Tester logs:\n{tester.dk.log}')
-
-            LOGGER.debug('closing RPC channels')
+                tester.rpc.cmd(7)
+        except:
+            pass
 
 
 @pytest.fixture()

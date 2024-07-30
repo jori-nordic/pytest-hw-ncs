@@ -77,6 +77,8 @@ def RPCDevice(device: Devkit):
          - means RPC command handlers are registered on target
        - a target logger backend
        - a device management API (reset/halt/etc)
+
+    This contextmanager will print the device logs before exiting.
     """
     try:
         # Manage RPC transport
@@ -104,6 +106,7 @@ def RPCDevice(device: Devkit):
         uart.close()
         device.close_log()
         device.halt()
+        LOGGER.info(f'[{device.segger_id}] Device logs:\n{device.log}')
 
 
 class TestDevice():
