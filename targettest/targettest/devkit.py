@@ -178,7 +178,10 @@ class Devkit:
             reset(self.segger_id, self.family, self.emu)
 
     def halt(self):
-        if self.emu is None:
+        if self.in_use and self.emu is None:
+            # This means that we have a connection from another program that we
+            # don't want interrupted, e.g. a debugger. In that case we don't
+            # want to connect just to halt the device.
             LOGGER.info(f'[{self.segger_id}] skipping halt')
         else:
             halt(self.segger_id, self.family, self.emu)
@@ -242,8 +245,9 @@ def halt(id, family, emu=None):
 
 def halt_unused(devkits: list):
     unused = [dk for dk in devkits if not dk.in_use]
+    LOGGER.info(f'Halting unused DKs {unused}')
     for dk in unused:
-        halt(dk.segger_id, dk.family)
+        dk.halt()
 
 def discover_dks(device_list=None, target_logger_class=TargetLogger):
     # TODO: maybe discover_dks should rather return a dict instead of
