@@ -160,13 +160,14 @@ def get_serial_port(id, family=None, api=None):
         # TODO: add better rules depending on family
         # Probably in a platform.yml describing those
 
-        if family == 'nrf53':
+        sorted_ports = sorted(ports, key=lambda port: port.vcom)
+
+        if family == 'NRF53':
             # Will get the last serial port. This is connected to the APP core
             # on nRF53 DKs.
-            sorted_ports = sorted(ports, key=lambda port: port.vcom)
-            return ports[-1].path
+            return sorted_ports[-1].path
         else:
-            return ports[0].path
+            return sorted_ports[0].path
 
     assert api is not None
 
