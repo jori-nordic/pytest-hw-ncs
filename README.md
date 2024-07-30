@@ -274,13 +274,12 @@ Goal: run tests written for this framework on zephyr platforms from different ve
 - [ ] make it possible to flash+log+run without segger emulator
 - [x] describe nih_rpc
 - [x] fix most TODOs in nih_rpc
-- [ ] use async-uart for nih_rpc
 - [ ] write Bluetooth stress test
 - [ ] make pytest understand the platform test matrix
 - [ ] make pytest build the firmware
 - [ ] support for split-build (ie hci_uart or ipc as precompiled .hex)
 - [ ] clean-up architecture. or at least document w/ diagram.
 - [x] initialize Devkit() objects from only one place (and time)
-- [ ] fix up INITRSP / READY-event business
-  - could just initialize NIH-RPC from main()
+- [x] fix up INITRSP / READY-event business
+  - we just initialize NIH-RPC from main()
 - [ ] namespace for System RPC events
