@@ -12,7 +12,7 @@ configurations:
     default: true
 
     dut_nrf53: nrf53-0
-    tester_nrf53: nrf53-0
+    tester_0_nrf53: nrf53-0
 
     dut_nrf52: nrf52840-0
-    tester_nrf52: nrf52840-0
+    tester_0_nrf52: nrf52840-0

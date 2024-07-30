@@ -83,12 +83,21 @@ def devkits(request):
     for devkit in dks:
         register_dk(devkit)
 
-def get_device_by_name(devices, name):
-    for dev in devices:
-        if dev['name'] == name:
-            return dev
 
-    return None
+def get_device_id_from_config(config, devices, name, family):
+    def _get_id_by_name(devices, name):
+        for dev in devices:
+            if dev['name'] == name:
+                return dev
+
+        return None
+
+    device_name = config[name + '_' + family]
+    device_id = _get_id_by_name(devices, device_name)['segger']
+
+    assert device_id, f'{name} not found in configuration'
+    return device_id
+
 
 def get_board_by_family(family: str):
     if family.upper() == 'NRF52':
@@ -104,8 +113,9 @@ def make_flasheddevices(root_dir,
                         devconf,
                         dut_family,
                         tester_family,
-                        single_device,
+                        num_testers,
                         rtt_logging):
+
     # Select the devices families
     if dut_family is None:
         dut_family = 'nrf53'
@@ -115,9 +125,15 @@ def make_flasheddevices(root_dir,
 
     # Select the actual devices
     dut_id = None
-    tester_id = None
+    tester_ids = []
 
-    if devconf is not None:
+    if devconf is None:
+        for num in range(num_testers):
+            # FlashedDevice() will grab an available device at random
+            tester_ids.append(None)
+
+        LOGGER.info(f'No devconf, will grab any available devices')
+    else:
         with open(devconf, 'r') as stream:
             # Assuming only one config per devconf file
             parsed = yaml.safe_load(stream)
@@ -125,15 +141,13 @@ def make_flasheddevices(root_dir,
         config = parsed['configurations'][0]
         devices = parsed['devices']
 
-        dut_name = config['dut_' + dut_family]
-        dut_id = get_device_by_name(devices, dut_name)['segger']
-        assert dut_id, 'DUT not found in configuration'
+        dut_id = get_device_id_from_config(config, devices, "dut", dut_family)
 
-        tester_name = config['tester_' + tester_family]
-        tester_id = get_device_by_name(devices, tester_name)['segger']
-        assert tester_id, 'Tester not found in configuration'
+        for num in range(num_testers):
+            tester_id = get_device_id_from_config(config, devices, f'tester_{num}', tester_family)
+            tester_ids.append(tester_id)
 
-        LOGGER.info(f'DUT: {dut_id} Tester: {tester_id}')
+        LOGGER.info(f'devconf: DUT: {dut_id} Testers: {tester_ids}')
 
     # ExitStack is equivalent to multiple nested `with` statements, but is more readable
     with ExitStack() as stack:
@@ -147,7 +161,8 @@ def make_flasheddevices(root_dir,
                           flash_device=flash,
                           emu=emu))
 
-        if not single_device:
+        tester_dks = []
+        for tester_id in tester_ids:
             tester_dk = stack.enter_context(
                 FlashedDevice(root_dir,
                               test_path,
@@ -157,10 +172,9 @@ def make_flasheddevices(root_dir,
                               board=get_board_by_family(tester_family),
                               flash_device=flash,
                               emu=emu))
-        else:
-            tester_dk = None
+            tester_dks.append(tester_dk)
 
-        devices = {'dut_dk': dut_dk, 'tester_dk': tester_dk}
+        devices = {'dut_dk': dut_dk, 'tester_dks': tester_dks}
         halt_unused(get_dk_list())
 
         yield devices
@@ -183,7 +197,12 @@ def flasheddevices(request):
     # E.g. `test_bt_notify.py` -> `tests/bt_notify/`
     test_path = pathlib.Path(getattr(request.module, "__file__"))
 
-    with make_flasheddevices(root_dir, test_path, flash, emu, devconf, dut_family, tester_family, single_device, rtt_logging) as devices:
+    if single_device:
+        num_testers = 0
+    else:
+        num_testers = 1
+
+    with make_flasheddevices(root_dir, test_path, flash, emu, devconf, dut_family, tester_family, num_testers, rtt_logging) as devices:
         yield devices
 
 
@@ -222,17 +241,20 @@ def testdevices(flasheddevices):
     with ExitStack() as stack:
         try:
             dut_dk = flasheddevices['dut_dk']
-            tester_dk = flasheddevices['tester_dk']
+            tester_dks = flasheddevices['tester_dks']
 
             LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
             dut_rpc = stack.enter_context(RPCDevice(dut_dk))
             dut = TestDevice(dut_dk, dut_rpc)
 
-            LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
-            tester_rpc = stack.enter_context(RPCDevice(tester_dk))
-            tester = TestDevice(tester_dk, tester_rpc)
+            testers = []
+            for tester_dk in tester_dks:
+                LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
+                tester_rpc = stack.enter_context(RPCDevice(tester_dk))
+                tester = TestDevice(tester_dk, tester_rpc)
+                testers.append(tester)
 
-            devices = {'dut': dut, 'tester': tester}
+            devices = {'dut': dut, 'testers': testers}
             LOGGER.info(f'Test devices: {devices}')
 
             yield devices
@@ -241,12 +263,14 @@ def testdevices(flasheddevices):
             # TODO: either namespace RPC cmds or add special packet
             try:
                 dut.rpc.cmd(7)
-                tester.rpc.cmd(7)
+                for tester in testers:
+                    tester.rpc.cmd(7)
             except:
                 pass
 
         finally:
-            LOGGER.info(f'[{dut_dk.segger_id}] DUT logs:\n{dut_dk.log}')
-            LOGGER.info(f'[{tester_dk.segger_id}] Tester logs:\n{tester_dk.log}')
+            LOGGER.info(f'[{dut.dk.segger_id}] DUT logs:\n{dut.dk.log}')
+            for tester in testers:
+                LOGGER.info(f'[{tester.dk.segger_id}] Tester logs:\n{tester.dk.log}')
 
             LOGGER.debug('closing RPC channels')
