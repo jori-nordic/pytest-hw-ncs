@@ -276,3 +276,8 @@ def testdevice(request, flasheddevices):
 def testdevices(request, flasheddevices):
     with make_testdevices(request, flasheddevices, num_testers=1) as devices:
         yield devices
+
+@pytest.fixture()
+def harness_multi_link(request, flasheddevices):
+    with make_testdevices(request, flasheddevices, num_testers=2) as devices:
+        yield devices

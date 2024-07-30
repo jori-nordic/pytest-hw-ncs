@@ -61,10 +61,12 @@ def scanner(testdevices):
     return tester
 
 
-# class TestMulti():
-#     def test_multi_boot(self, harness_multi_link):
-#         LOGGER.info(f"Got {len(testdevices)} devices")
-#         assert len(testdevices) == 3
+class TestMulti():
+    def test_multi_boot(self, harness_multi_link):
+        testers = harness_multi_link['testers']
+        LOGGER.info(f"Got devices {harness_multi_link}")
+
+        assert len(testers) > 1
 
 
 class TestBluetooth():
