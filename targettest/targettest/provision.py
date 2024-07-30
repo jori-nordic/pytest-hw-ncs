@@ -35,47 +35,27 @@ def get_available_dk(family, id=None):
 def get_dk_list():
     return devkits
 
-def get_fw_path(root_dir, test_path, board, network_core=None):
-    """Find the firmware for the calling test suite"""
-    rel_suite_path = test_path.parent.relative_to(root_dir)
-
-    # This assumes all multi-image builds are built using sysbuild
-
-    if network_core is not None:
-        build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_ipc'
-    else:
-        build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
-
-    fw_hex = build_dir / 'zephyr' / 'zephyr.hex'
-
-    assert fw_hex.exists(), f"Missing firmware: {fw_hex}"
-
-    return fw_hex
-
 @contextmanager
-def FlashedDevice(root_dir, test_path, family='NRF53', id=None, board='nrf5340dk/nrf5340/cpuapp', name=None, flash_device=True, emu=True):
+def FlashedDevice(root_dir,
+                  test_path,
+                  family='NRF53',
+                  id=None,
+                  board='nrf5340dk/nrf5340/cpuapp',
+                  name=None,
+                  flash_device=True,
+                  emu=True):
+
     # Select HW device
     dev = get_available_dk(family, id)
     assert dev is not None, f'Hardware device not found'
 
-    if family is not None:
-        family = family.upper()
+    family = family.upper()
 
     if name is not None:
         dev.name = name
 
     if flash_device:
-        # Flash device with test FW & reset it
-        if family == 'NRF53':
-            # Flash the network core first
-            fw_hex = get_fw_path(root_dir, test_path, board, network_core=True)
-            flash(dev.segger_id, dev.family, fw_hex, core='NET')
-
-        fw_hex = get_fw_path(root_dir, test_path, board)
-        flash(dev.segger_id, dev.family, fw_hex)
-
-        # TODO: maybe halt instead? At least try to reduce number of reset calls
-        reset(dev.segger_id, dev.family)
+        dev.flash(root_dir, test_path, board)
 
     dev.open(open_emu=emu)
 

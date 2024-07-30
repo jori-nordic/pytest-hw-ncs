@@ -65,8 +65,31 @@ def SeggerDevice(family='UNKNOWN', id=None, core='APP'):
         LOGGER.debug(f'[{id}] jlink closed')
 
 
+def get_fw_path(root_dir, test_path, board, network_core=None):
+    """Find the firmware for the calling test suite"""
+    rel_suite_path = test_path.parent.relative_to(root_dir)
+
+    # This assumes all multi-image builds are built using sysbuild
+
+    if network_core is not None:
+        build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_ipc'
+    else:
+        build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
+
+    fw_hex = build_dir / 'zephyr' / 'zephyr.hex'
+
+    assert fw_hex.exists(), f"Missing firmware: {fw_hex}"
+
+    return fw_hex
+
+
 class Devkit:
-    def __init__(self, id, family, name, port=None, target_logger_class=TargetLogger):
+    def __init__(self,
+                 id,
+                 family,
+                 name,
+                 port=None,
+                 target_logger_class=TargetLogger):
         self.emu = None
         self.segger_id = int(id)
         self.family = family.upper()
@@ -84,6 +107,18 @@ class Devkit:
 
     def log_handler(self, rx: str):
         self.log += rx
+
+    def flash(self, root_path, test_path, board_name):
+        if self.family == 'NRF53':
+            # Flash the network core first
+            fw_hex = get_fw_path(root_path, test_path, board_name, network_core=True)
+            flash(self.segger_id, self.family, fw_hex, core='NET')
+
+        fw_hex = get_fw_path(root_path, test_path, board_name)
+        flash(self.segger_id, self.family, fw_hex)
+
+        # TODO: maybe halt instead? At least try to reduce number of reset calls
+        reset(self.segger_id, self.family)
 
     def open(self, open_emu):
         LOGGER.debug(f'[{self.segger_id}] devkit open')
@@ -173,7 +208,7 @@ def get_serial_port(id, family=None, api=None):
 
     return _get_serial_port(id, family)
 
-def flash(id, family, hex_path, core='APP', reset=True):
+def flash(id, family, hex_path, core='APP'):
     with SeggerDevice(family, id, core) as cpu:
         LOGGER.info(f'[{id}] [{family}-{core}] Flashing with {str(hex_path)}')
         # Erase the target's flash
