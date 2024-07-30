@@ -35,17 +35,13 @@ def get_available_dk(family, id=None):
 def get_dk_list():
     return devkits
 
-def get_fw_path(root_dir, test_path, board, hci_uart=False, network_core=None):
+def get_fw_path(root_dir, test_path, board, network_core=None):
     """Find the firmware for the calling test suite"""
     rel_suite_path = test_path.parent.relative_to(root_dir)
 
     # This assumes all multi-image builds are built using sysbuild
 
-    if hci_uart:
-        # TODO: use a more explicit option than just "split"
-        # like, --harness-type=hci_uart or --harness-type=hci_ipc etc
-        build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_uart'
-    elif network_core is not None:
+    if network_core is not None:
         build_dir = root_dir / 'build' / rel_suite_path / board / 'hci_ipc'
     else:
         build_dir = root_dir / 'build' / rel_suite_path / board / 'fw'
@@ -68,16 +64,14 @@ def FlashedDevice(root_dir, test_path, family='NRF53', id=None, board='nrf5340dk
     if name is not None:
         dev.name = name
 
-    use_hci_uart = name == "DUT 1"
-
     if flash_device:
         # Flash device with test FW & reset it
         if family == 'NRF53':
             # Flash the network core first
-            fw_hex = get_fw_path(root_dir, test_path, board, hci_uart=use_hci_uart, network_core=True)
+            fw_hex = get_fw_path(root_dir, test_path, board, network_core=True)
             flash(dev.segger_id, dev.family, fw_hex, core='NET')
 
-        fw_hex = get_fw_path(root_dir, test_path, board, hci_uart=use_hci_uart)
+        fw_hex = get_fw_path(root_dir, test_path, board)
         flash(dev.segger_id, dev.family, fw_hex)
 
         # TODO: maybe halt instead? At least try to reduce number of reset calls
