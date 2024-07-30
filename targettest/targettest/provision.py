@@ -35,6 +35,12 @@ def get_available_dk(family, id=None):
 def get_dk_list():
     return devkits
 
+def halt_unused(devkits: list):
+    unused = [dk for dk in devkits if not dk.in_use]
+    LOGGER.info(f'Halting unused DKs {unused}')
+    for dk in unused:
+        dk.halt()
+
 @contextmanager
 def FlashedDevice(root_dir,
                   test_path,

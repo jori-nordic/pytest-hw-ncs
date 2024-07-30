@@ -88,12 +88,11 @@ class Devkit:
                  id,
                  family,
                  name,
-                 port=None,
                  target_logger_class=TargetLogger):
         self.emu = None
         self.segger_id = int(id)
         self.family = family.upper()
-        self.port = port
+        self.port = None
 
         self.name = name
         self.in_use = False
@@ -124,16 +123,15 @@ class Devkit:
         LOGGER.debug(f'[{self.segger_id}] devkit open')
         self.in_use = True
 
-        # Don't try to fetch the port path if supplied
-        if self.port is None:
-            self.port = get_serial_port(self.segger_id)
-
         # Rest of setup involves the Segger ICE
         if open_emu:
             self.apiobject = SeggerDevice(self.family, self.segger_id)
             self.emu = self.apiobject.__enter__()
 
-        self.in_use = True
+        # Don't try to fetch the port path if supplied
+        if self.port is None:
+            self.port = get_serial_port(self.segger_id,
+                                        self.family)
 
     def close(self):
         LOGGER.debug(f'[{self.segger_id}] devkit close')
@@ -188,7 +186,7 @@ class Devkit:
 
 
 def get_serial_port(id, family=None, api=None):
-    def _get_serial_port(id, family):
+    def _get_serial_port(id, family, api):
         ports = api.enum_emu_com_ports(id)
 
         LOGGER.debug(f'[{id}] Serial ports: {ports}')
@@ -207,9 +205,12 @@ def get_serial_port(id, family=None, api=None):
         else:
             return sorted_ports[0].path
 
-    assert api is not None
+    if api is not None:
+        return _get_serial_port(id, family, api)
 
-    return _get_serial_port(id, family)
+    # TODO: figure out if this messes with a connected debugger
+    with SeggerEmulator() as api:
+        return _get_serial_port(id, family, api)
 
 def flash(id, family, hex_path, core='APP'):
     with SeggerDevice(family, id, core) as cpu:
@@ -243,39 +244,16 @@ def halt(id, family, emu=None):
         with SeggerDevice(family, id) as emu:
             emu.halt()
 
-def halt_unused(devkits: list):
-    unused = [dk for dk in devkits if not dk.in_use]
-    LOGGER.info(f'Halting unused DKs {unused}')
-    for dk in unused:
-        dk.halt()
-
-def discover_dks(device_list=None, target_logger_class=TargetLogger):
-    # TODO: maybe discover_dks should rather return a dict instead of
-    # registering full-blown Devkit() objects. That way, the caller can register
-    # those, and register the target logger too.
-    #
-    # device_list: list of dicts with name, id, family
-    if device_list is not None:
-        devkits = []
-        with SeggerEmulator() as api:
-            for device in device_list:
-                family = device['family'].upper()
-                id = int(device['segger'])
-                port = get_serial_port(id, family, api)
-                devkits.append(
-                    Devkit(id, family, f'dk-{family}-{id}', port, target_logger_class))
-
-        return devkits
-
+def list_connected_nordic_devices():
     with SeggerEmulator() as api:
         ids = api.enum_emu_snr()
         devkits = []
         for id in ids:
             api.connect_to_emu_with_snr(id)
             family = api.read_device_family()
-            port = get_serial_port(id, family, api)
-            devkits.append(
-                Devkit(id, family, f'dk-{family}-{id}', port, target_logger_class))
+            info = {'segger': id,
+                    'family': family}
+            devkits.append(info)
             api.disconnect_from_emu()
 
-    return devkits
+        return devkits

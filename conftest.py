@@ -10,8 +10,8 @@ import pathlib
 from contextlib import ExitStack, contextmanager
 from targettest.rtt_logger import RTTLogger
 from targettest.rpc_logger import RPCLogger
-from targettest.devkit import Devkit, discover_dks, halt_unused
-from targettest.provision import (register_dk, get_dk_list,
+from targettest.devkit import Devkit, list_connected_nordic_devices
+from targettest.provision import (register_dk, get_dk_list, halt_unused,
                                   FlashedDevice, RPCDevice, TestDevice)
 
 LOGGER = logging.getLogger(__name__)
@@ -65,23 +65,41 @@ def get_logger_type(request):
 
     return type
 
+
+def make_devkits(device_list=None, target_logger_type=None):
+    if device_list is None:
+        # If no devices are specified, grab all the connected nordic devkits.
+        device_list = list_connected_nordic_devices()
+
+    devkits = []
+    for device in device_list:
+        family = device['family'].upper()
+        id = int(device['segger'])
+        devkits.append(
+            Devkit(id,
+                    family,
+                    f'dk-{family}-{id}',
+                    target_logger_type))
+
+    return devkits
+
+
 @pytest.fixture(scope="session", autouse=True)
 def devkits(request):
     # Don't discover devices if devconf was specified on cli
     devconf = request.config.getoption("--devconf")
     if devconf is not None:
-        LOGGER.info(f'Getting devices from devconf')
+        LOGGER.info(f'Get devices from devconf')
         dk_list = get_device_list_from_devconf(devconf)
     else:
-        LOGGER.info(f'Discovering devices...')
+        LOGGER.info(f'Get devices automatically')
         dk_list = None
 
-    dks = discover_dks(dk_list, get_logger_type(request))
+    logger_type = get_logger_type(request)
+    dks = make_devkits(dk_list, logger_type)
 
-    LOGGER.info(f'Registering devices: {[devkit.segger_id for devkit in dks]}')
-
-    for devkit in dks:
-        register_dk(devkit)
+    for dk in dks:
+        register_dk(dk)
 
 
 def get_device_id_from_config(config, devices, name, family):
