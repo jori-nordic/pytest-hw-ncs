@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
 #
-from targettest.abstract_logger import TargetLogger
+from targettest.target_logger.interface import TargetLogger
 
 
 class RPCLogger(TargetLogger):

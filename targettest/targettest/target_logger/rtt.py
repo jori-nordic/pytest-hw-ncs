@@ -1,7 +1,7 @@
 import time
 import logging
 import threading
-from targettest.abstract_logger import TargetLogger
+from targettest.target_logger.interface import TargetLogger
 
 
 LOGGER = logging.getLogger(__name__)

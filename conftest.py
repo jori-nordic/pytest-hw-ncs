@@ -8,8 +8,8 @@ import yaml
 import logging
 import pathlib
 from contextlib import ExitStack, contextmanager
-from targettest.rtt_logger import RTTLogger
-from targettest.rpc_logger import RPCLogger
+from targettest.target_logger.rtt import RTTLogger
+from targettest.target_logger.rpc import RPCLogger
 from targettest.devkit import Devkit, list_connected_nordic_devices
 from targettest.provision import (register_dk, get_dk_list, halt_unused,
                                   FlashedDevice, RPCDevice, TestDevice)
