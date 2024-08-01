@@ -6,7 +6,7 @@
 import time
 import queue
 import logging
-from targettest.abstract_transport import PacketTransport
+from targettest.packet_transport.interface import PacketTransport
 from targettest.rpc_packet import RPCPacket, RPCPacketType
 
 LOGGER = logging.getLogger(__name__)

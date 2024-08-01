@@ -9,7 +9,7 @@ import logging
 from contextlib import contextmanager
 from intelhex import IntelHex
 from targettest.devkit import Devkit, flash, reset
-from targettest.uart_channel import UARTPacketTransport
+from targettest.packet_transport.uart import UARTPacketTransport
 from targettest.rpc_channel import RPCChannel
 
 LOGGER = logging.getLogger(__name__)
