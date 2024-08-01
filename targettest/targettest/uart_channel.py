@@ -102,18 +102,19 @@ class UARTPacketTransport(PacketTransport):
     def __init__(self,
                  port,
                  baudrate=1000000,
-                 rtscts=True,
-                 packet_handler=None):
+                 rtscts=True):
 
         self.uart = UARTTransport(port, baudrate, rtscts, rx_handler=self.handle_rx)
         self.state = UARTDecodingState()
+        self.packet_handler = None
 
         LOGGER.debug(f'UART packet channel init: {port}')
 
     def __repr__(self):
         return f'{self.uart.port}'
 
-    def open(self):
+    def open(self, packet_handler):
+        self.packet_handler = packet_handler
         self.uart.open()
 
     def close(self):

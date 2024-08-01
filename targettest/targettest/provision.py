@@ -84,7 +84,7 @@ def RPCDevice(device: Devkit):
         # Manage RPC transport
         uart = UARTPacketTransport(port=device.port)
         channel = RPCChannel(uart, log_handler=device.log_handler)
-        uart.open()
+        uart.open(channel.handler)
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
         device.reset()

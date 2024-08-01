@@ -16,7 +16,6 @@ class RPCChannel():
     def __init__(self, transport: PacketTransport, default_packet_handler=None, log_handler=None):
         # A valid transport has to be initialized first
         self.transport = transport
-        self.transport.packet_handler = self.handler
         self.device_log_handler = log_handler
 
         self.established = False
