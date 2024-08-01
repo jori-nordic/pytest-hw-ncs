@@ -9,7 +9,7 @@ import logging
 from contextlib import contextmanager
 from intelhex import IntelHex
 from targettest.devkit import Devkit, flash, reset
-from targettest.uart_channel import UARTRPCChannel
+from targettest.uart_channel import UARTPacketTransport
 from targettest.rpc_channel import RPCChannel
 
 LOGGER = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ def RPCDevice(device: Devkit):
     """
     try:
         # Manage RPC transport
-        uart = UARTRPCChannel(port=device.port)
+        uart = UARTPacketTransport(port=device.port)
         channel = RPCChannel(uart, log_handler=device.log_handler)
         uart.open()
         LOGGER.debug('Wait for RPC ready')
@@ -112,7 +112,7 @@ def RPCDevice(device: Devkit):
 class TestDevice():
     """Convenience class to group devkit and rpc objects for further usage in
     the test case."""
-    def __init__(self, devkit: Devkit, rpc: UARTRPCChannel):
+    def __init__(self, devkit: Devkit, rpc: UARTPacketTransport):
         self.dk = devkit
         self.rpc = rpc
 

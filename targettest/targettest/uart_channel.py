@@ -15,7 +15,7 @@ from targettest.abstract_transport import PacketTransport
 LOGGER = logging.getLogger(__name__)
 
 
-class UARTChannel(threading.Thread):
+class UARTTransport(threading.Thread):
     DEFAULT_TIMEOUT = 0.001
     DEFAULT_WRITE_TIMEOUT = 5
     MAX_RECV_BYTE_COUNT = 256
@@ -36,8 +36,8 @@ class UARTChannel(threading.Thread):
         self._max_recv_byte_count = self.MAX_RECV_BYTE_COUNT
 
         self._serial = serial.Serial(port=port, baudrate=baudrate, rtscts=rtscts,
-                                     timeout=UARTChannel.DEFAULT_TIMEOUT,
-                                     write_timeout=UARTChannel.DEFAULT_WRITE_TIMEOUT)
+                                     timeout=UARTTransport.DEFAULT_TIMEOUT,
+                                     write_timeout=UARTTransport.DEFAULT_WRITE_TIMEOUT)
 
     def clear_buffers(self):
         self._serial.reset_input_buffer()
@@ -98,14 +98,14 @@ class UARTDecodingState():
         return f'{self.header} buf {self.rx_buf.hex(" ")}'
 
 
-class UARTRPCChannel(PacketTransport):
+class UARTPacketTransport(PacketTransport):
     def __init__(self,
                  port,
                  baudrate=1000000,
                  rtscts=True,
                  packet_handler=None):
 
-        self.uart = UARTChannel(port, baudrate, rtscts, rx_handler=self.handle_rx)
+        self.uart = UARTTransport(port, baudrate, rtscts, rx_handler=self.handle_rx)
         self.state = UARTDecodingState()
 
         LOGGER.debug(f'UART packet channel init: {port}')
