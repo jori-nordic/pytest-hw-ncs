@@ -5,7 +5,6 @@
 #
 import enum
 import struct
-from targettest.uart_packet import UARTPacket
 
 import logging
 
@@ -65,9 +64,9 @@ class RPCPacket():
         else:
             raise Exception("Provide payload as either a dict or bytes")
 
-        # Build whole packet
-        self.packet = UARTPacket(self.header + self.payload)
-        self.raw = self.packet.raw
+        # Build whole packet. Transport-specific headers are defined and
+        # prepended (if necessary) by the transports themselves.
+        self.serialized = self.header + self.payload
 
     def __repr__(self):
         return '{} {:02x} LEN {} DATA {}'.format(
@@ -78,9 +77,7 @@ class RPCPacket():
         )
 
     @classmethod
-    def unpack(cls, packet: bytes):
-        payload = UARTPacket.unpack(packet).payload
-
+    def unpack(cls, payload: bytes):
         # Separate RPC cmd/evt payload from RPC header
         rpc_header = payload[:cls._size]
         payload = payload[cls._size:]

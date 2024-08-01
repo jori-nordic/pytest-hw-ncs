@@ -31,7 +31,9 @@ class RPCChannel():
     def lookup(self, packet: RPCPacket):
         return self.handler_lut[packet.packet_type][packet.opcode]
 
-    def handler(self, packet: RPCPacket):
+    def handler(self, payload: bytes):
+        packet = RPCPacket.unpack(payload)
+
         LOGGER.debug(f'Handling {packet}')
         # Call opcode handler if registered, else call default handler
         if packet.packet_type == RPCPacketType.INIT:
@@ -87,7 +89,7 @@ class RPCChannel():
         # ACKs should always be sent in the same order the events were received
         packet = RPCPacket(RPCPacketType.ACK, opcode, payload=b'')
 
-        self.transport.send(packet.raw)
+        self.transport.send(packet.serialized)
 
     def cmd(self, opcode: int, data: dict or bytes = b'', timeout=5):
         packet = RPCPacket(RPCPacketType.CMD, opcode, payload=data)
@@ -96,7 +98,7 @@ class RPCChannel():
         while not self.established:
             time.sleep(.01)
 
-        self.transport.send(packet.raw)
+        self.transport.send(packet.serialized)
 
         end_time = time.monotonic() + timeout
         while self._rsp is None:
@@ -128,9 +130,9 @@ class RPCChannel():
     def send_init(self):
         packet = RPCPacket(RPCPacketType.INIT, 0, payload=b'')
 
-        self.transport.send(packet.raw)
+        self.transport.send(packet.serialized)
 
     def send_initrsp(self):
         packet = RPCPacket(RPCPacketType.INITRSP, 0, payload=b'')
 
-        self.transport.send(packet.raw)
+        self.transport.send(packet.serialized)

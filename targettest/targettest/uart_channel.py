@@ -8,8 +8,7 @@ import time
 import threading
 import logging
 from contextlib import contextmanager
-from targettest.uart_packet import UARTHeader
-from targettest.rpc_packet import RPCPacket
+from targettest.uart_packet import UARTHeader, UARTPacket
 from targettest.abstract_transport import PacketTransport
 
 LOGGER = logging.getLogger(__name__)
@@ -120,8 +119,8 @@ class UARTPacketTransport(PacketTransport):
     def close(self):
         self.uart.close()
 
-    def send(self, data, timeout=15):
-        self.uart.send(data, timeout)
+    def send(self, data: bytes, timeout=15):
+        self.uart.send(UARTPacket(data).raw, timeout)
 
     def handle_rx(self, data: bytes):
         # Prepend the (just received) data with the remains of the last RX
@@ -145,12 +144,12 @@ class UARTPacketTransport(PacketTransport):
             # Try to decode the packet
             if len(data[self.state.header._size:]) >= self.state.header.length:
                 try:
-                    packet = RPCPacket.unpack(data)
+                    payload = UARTPacket.unpack(data).payload
                 except Exception as e:
-                    LOGGER.error(f'Failed to decode packet: {data}')
+                    LOGGER.error(f'Failed to decode uart packet: {data}')
                     raise e
 
-                self.packet_handler(packet)
+                self.packet_handler(payload)
 
                 # Consume the data in the RX buffer
                 data = data[self.state.header._size + self.state.header.length:]
