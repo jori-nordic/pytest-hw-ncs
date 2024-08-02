@@ -17,6 +17,8 @@ The tests can call (C) functions running on the device and get data back, using 
 
 ## Folder structure
 
+FIXME: update this document after the work is done
+
 ```
 ├── build.sh                          # test FW build script
 ├── conftest.py                       # configuration script automatically run by pytest
