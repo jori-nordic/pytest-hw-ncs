@@ -22,13 +22,12 @@ class TargetLogger(ABC):
 
     def open(self):
         """Open the log transport (e.g. UART / RTT). Blocking."""
-        pass
+        raise NotImplementedError
 
     def flush(self):
         """Force flushing the buffer (if it exists) into output_handler"""
-        pass
+        raise NotImplementedError
 
     def close(self):
         """Close the log transport (e.g. UART / RTT). Blocking."""
-        pass
-
+        raise NotImplementedError
