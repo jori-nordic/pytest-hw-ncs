@@ -10,7 +10,7 @@ import pathlib
 from contextlib import ExitStack, contextmanager
 from targettest.target_logger.rtt import RTTLogger
 from targettest.target_logger.rpc import RPCLogger
-from targettest.devkit import Devkit, list_connected_nordic_devices
+from targettest.target.nordic import NordicDevkit, list_connected_nordic_devices
 from targettest.provision import register_dk, get_dk_list, halt_unused
 from targettest.device import FlashedDevice, RPCDevice, TestDevice
 
@@ -76,10 +76,10 @@ def make_devkits(device_list=None, target_logger_type=None):
         family = device['family'].upper()
         id = int(device['segger'])
         devkits.append(
-            Devkit(id,
-                    family,
-                    f'dk-{family}-{id}',
-                    target_logger_type))
+            NordicDevkit(id,
+                         family,
+                         f'dk-{family}-{id}',
+                         target_logger_type))
 
     return devkits
 
@@ -250,14 +250,14 @@ def make_testdevices(request, flasheddevices, num_testers):
     assert len(tester_dks) >= num_testers, "Not enough testers have been flashed"
 
     with ExitStack() as stack:
-        LOGGER.debug(f'opening DUT rpc {dut_dk.segger_id}')
+        LOGGER.debug(f'opening DUT rpc {dut_dk.snr}')
         dut_rpc = stack.enter_context(RPCDevice(dut_dk))
         dut = TestDevice(dut_dk, dut_rpc)
 
         testers = []
         for i in range(num_testers):
             tester_dk = tester_dks[i]
-            LOGGER.debug(f'opening Tester rpc {tester_dk.segger_id}')
+            LOGGER.debug(f'opening Tester rpc {tester_dk.snr}')
             tester_rpc = stack.enter_context(RPCDevice(tester_dk))
             tester = TestDevice(tester_dk, tester_rpc)
             testers.append(tester)

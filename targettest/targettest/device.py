@@ -8,7 +8,7 @@ import logging
 from contextlib import contextmanager
 from targettest.packet_transport.uart import UARTPacketTransport
 from targettest.rpc import RPCChannel
-from targettest.devkit import Devkit
+from targettest.target.interface import TargetDevice
 from targettest.provision import get_available_dk
 
 LOGGER = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ def FlashedDevice(root_dir,
     if flash_device:
         dev.flash(root_dir, test_path, board)
 
-    dev.open(open_emu=emu)
+    dev.open(connect_emulator=emu)
 
     yield dev
 
@@ -45,7 +45,7 @@ def FlashedDevice(root_dir,
 
 
 @contextmanager
-def RPCDevice(device: Devkit):
+def RPCDevice(device: TargetDevice):
     """A device that has:
        - an established NIH-RPC transport
          - means RPC command handlers are registered on target
@@ -55,8 +55,8 @@ def RPCDevice(device: Devkit):
     """
     try:
         # Manage RPC transport
-        uart = UARTPacketTransport(port=device.port)
-        rpc = RPCChannel(uart, log_handler=device.log_handler)
+        uart = UARTPacketTransport(port=device.serial_port)
+        rpc = RPCChannel(uart, log_handler=device.append_to_log)
         uart.open(rpc.handler)
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
@@ -70,24 +70,25 @@ def RPCDevice(device: Devkit):
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
-        LOGGER.info(f'[{device.port}] rpc ready')
+        LOGGER.info(f'[{device.snr}] rpc ready')
 
         yield rpc
 
     finally:
-        LOGGER.info(f'[{device.port}] closing rpc')
+        LOGGER.info(f'[{device.snr}] closing rpc')
         uart.close()
         device.close_log()
         device.halt()
-        LOGGER.info(f'[{device.segger_id}] Device logs:\n{device.log}')
+        LOGGER.info(f'[{device.snr}] Device logs:\n{device.log}')
 
 
 class TestDevice():
     """Convenience class to group devkit and rpc objects for further usage in
     the test case."""
-    def __init__(self, devkit: Devkit, rpc: UARTPacketTransport):
+    def __init__(self, devkit: TargetDevice, rpc: RPCChannel):
         self.dk = devkit
         self.rpc = rpc
 
     def __repr__(self):
-        return f'[{self.dk.segger_id}] {self.dk.port}'
+        # TODO: remove serial dependency
+        return f'[{self.dk.snr}] {self.dk.serial_port}'

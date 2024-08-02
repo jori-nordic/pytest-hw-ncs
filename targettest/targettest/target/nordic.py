@@ -9,6 +9,7 @@ import logging
 from contextlib import contextmanager
 from pynrfjprog import LowLevel, APIError
 from pynrfjprog import Parameters
+from targettest.target.interface import TargetDevice
 from targettest.target_logger.rtt import RTTLogger
 from targettest.target_logger.rpc import RPCLogger
 from targettest.target_logger.interface import TargetLogger
@@ -83,106 +84,117 @@ def get_fw_path(root_dir, test_path, board, network_core=None):
     return fw_hex
 
 
-class Devkit:
+class NordicDevkit(TargetDevice):
     def __init__(self,
-                 id,
+                 snr,
                  family,
                  name,
                  target_logger_class=TargetLogger):
-        self.emu = None
-        self.segger_id = int(id)
-        self.family = family.upper()
-        self.port = None
 
-        self.name = name
-        self.in_use = False
+        self._emu = None
+        self._segger_id = int(snr)
+        self._port = None
+        self._in_use = False
 
-        self.log = ''
-        self._target_logger_class = target_logger_class
-        self.target_logger = None
+        self._target_logger = None
+        self._log = ''
+
+        super().__init__(snr, family.upper(), name, target_logger_class)
 
     def __repr__(self):
-        return f'{self.name}: {self.segger_id} {self.port}'
+        return f'{self.name}: {self.snr} {self._port}'
 
-    def log_handler(self, rx: str):
-        self.log += rx
+    @property
+    def serial_port(self):
+        assert self._port is not None
+        return self._port
 
     def flash(self, root_path, test_path, board_name):
         if self.family == 'NRF53':
             # Flash the network core first
             fw_hex = get_fw_path(root_path, test_path, board_name, network_core=True)
-            flash(self.segger_id, self.family, fw_hex, core='NET')
+            flash(self.snr, self.family, fw_hex, core='NET')
 
         fw_hex = get_fw_path(root_path, test_path, board_name)
-        flash(self.segger_id, self.family, fw_hex)
+        flash(self.snr, self.family, fw_hex)
 
         # TODO: maybe halt instead? At least try to reduce number of reset calls
-        reset(self.segger_id, self.family)
+        reset(self.snr, self.family)
 
-    def open(self, open_emu):
-        LOGGER.debug(f'[{self.segger_id}] devkit open')
-        self.in_use = True
+    def open(self, connect_emulator=True):
+        LOGGER.debug(f'[{self.snr}] devkit open')
+        self._in_use = True
 
         # Rest of setup involves the Segger ICE
-        if open_emu:
-            self.apiobject = SeggerDevice(self.family, self.segger_id)
-            self.emu = self.apiobject.__enter__()
+        if connect_emulator:
+            self.apiobject = SeggerDevice(self.family, self.snr)
+            self._emu = self.apiobject.__enter__()
 
         # Don't try to fetch the port path if supplied
-        if self.port is None:
-            self.port = get_serial_port(self.segger_id,
-                                        self.family)
+        if self._port is None:
+            self._port = get_serial_port(self.snr,
+                                         self.family)
 
     def close(self):
-        LOGGER.debug(f'[{self.segger_id}] devkit close')
+        LOGGER.debug(f'[{self.snr}] devkit close')
 
-        if self.emu is not None:
+        if self._emu is not None:
             self.apiobject.__exit__(None, None, None)
 
-        self.in_use = False
+        self._in_use = False
+
+    def _log_handler(self, rx: str):
+        self._log += rx
+
+    @property
+    def log(self):
+        return self._log
+
+    def append_to_log(self, rx: str):
+        self._log_handler(rx)
 
     def open_log(self):
-        self.log = ''
+        self._log = ''
 
         if self._target_logger_class is RTTLogger:
             # TODO: figure out a better place and time for this. We need an
             # already open segger emulator, so finding the correct place to
             # initialize is not trivial.
-            self.target_logger = self._target_logger_class(output_handler=self.log_handler,
-                                                           id=self.segger_id,
-                                                           emulator=self.emu)
+            self._target_logger = self._target_logger_class(output_handler=self._log_handler,
+                                                           id=self.snr,
+                                                           emulator=self._emu)
         elif self._target_logger_class is RPCLogger:
             # In the log-over-RPC case, we don't need special parameters:
             # NIH-RPC will directly call the Devkit() log handler function when
             # LOG packets are received.
-            self.target_logger = self._target_logger_class(output_handler=self.log_handler)
+            self._target_logger = self._target_logger_class(output_handler=self._log_handler)
         else:
-            raise Exception(f"Logger class {self.target_logger} not supported")
+            raise Exception(f"Logger class {self._target_logger} not supported")
 
-        self.target_logger.open()
+        self._target_logger.open()
 
     def close_log(self):
-        if self.target_logger is not None:
-            self.target_logger.close()
+        if self._target_logger is not None:
+            self._target_logger.close()
 
     def available(self):
-        return not self.in_use
+        return not self._in_use
 
     def reset(self):
-        if self.emu is None:
-            LOGGER.info(f'[{self.segger_id}] interactive reset')
-            input(f'\nReset device [{self.segger_id}] and press enter')
+        if self._emu is None:
+            LOGGER.info(f'[{self.snr}] interactive reset')
+            input(f'\nReset device [{self.snr}] and press enter')
         else:
-            reset(self.segger_id, self.family, self.emu)
+            reset(self.snr, self.family, self._emu)
 
     def halt(self):
-        if self.in_use and self.emu is None:
+        if self._in_use and self._emu is None:
             # This means that we have a connection from another program that we
             # don't want interrupted, e.g. a debugger. In that case we don't
             # want to connect just to halt the device.
-            LOGGER.info(f'[{self.segger_id}] skipping halt')
+            LOGGER.info(f'[{self.snr}] skipping halt')
         else:
-            halt(self.segger_id, self.family, self.emu)
+            halt(self.snr, self.family, self._emu)
 
 
 def get_serial_port(id, family=None, api=None):
