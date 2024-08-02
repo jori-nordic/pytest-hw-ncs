@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from intelhex import IntelHex
 from targettest.devkit import Devkit, flash, reset
 from targettest.packet_transport.uart import UARTPacketTransport
-from targettest.rpc_channel import RPCChannel
+from targettest.rpc import RPCChannel
 
 LOGGER = logging.getLogger(__name__)
 
@@ -83,8 +83,8 @@ def RPCDevice(device: Devkit):
     try:
         # Manage RPC transport
         uart = UARTPacketTransport(port=device.port)
-        channel = RPCChannel(uart, log_handler=device.log_handler)
-        uart.open(channel.handler)
+        rpc = RPCChannel(uart, log_handler=device.log_handler)
+        uart.open(rpc.handler)
         LOGGER.debug('Wait for RPC ready')
         # Start receiving bytes
         device.reset()
@@ -92,17 +92,17 @@ def RPCDevice(device: Devkit):
 
         # Wait until we have received the handshake/init packet
         end_time = time.monotonic() + 5
-        while not channel.established:
+        while not rpc.established:
             time.sleep(.01)
             if time.monotonic() > end_time:
                 raise Exception('Unresponsive device')
 
-        LOGGER.info(f'[{device.port}] channel ready')
+        LOGGER.info(f'[{device.port}] rpc ready')
 
-        yield channel
+        yield rpc
 
     finally:
-        LOGGER.info(f'[{device.port}] closing channel')
+        LOGGER.info(f'[{device.port}] closing rpc')
         uart.close()
         device.close_log()
         device.halt()
