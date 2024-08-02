@@ -50,7 +50,6 @@ def RPCDevice(device: Devkit):
        - an established NIH-RPC transport
          - means RPC command handlers are registered on target
        - a target logger backend
-       - a device management API (reset/halt/etc)
 
     This contextmanager will print the device logs before exiting.
     """
