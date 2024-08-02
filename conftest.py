@@ -11,8 +11,8 @@ from contextlib import ExitStack, contextmanager
 from targettest.target_logger.rtt import RTTLogger
 from targettest.target_logger.rpc import RPCLogger
 from targettest.devkit import Devkit, list_connected_nordic_devices
-from targettest.provision import (register_dk, get_dk_list, halt_unused,
-                                  FlashedDevice, RPCDevice, TestDevice)
+from targettest.provision import register_dk, get_dk_list, halt_unused
+from targettest.device import FlashedDevice, RPCDevice, TestDevice
 
 LOGGER = logging.getLogger(__name__)
 
