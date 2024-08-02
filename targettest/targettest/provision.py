@@ -8,7 +8,7 @@ import pathlib
 import logging
 from contextlib import contextmanager
 from intelhex import IntelHex
-from targettest.devkit import Devkit, flash, reset
+from targettest.devkit import Devkit
 from targettest.packet_transport.uart import UARTPacketTransport
 from targettest.rpc import RPCChannel
 
