@@ -12,7 +12,6 @@ class RTTLogger(TargetLogger, threading.Thread):
         self._stop_rx_flag = threading.Event() # Used to cleanly stop the RX thread
         self.ready = False
         self.emulator = emulator
-        self.in_use = False
         self.segger_id = id
         self.search_timeout = search_timeout
         self.output_handler = output_handler
