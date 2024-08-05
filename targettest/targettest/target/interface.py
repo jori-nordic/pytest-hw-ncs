@@ -55,6 +55,10 @@ class TargetDevice(ABC):
         """True if the device is already used by the framework."""
         raise NotImplementedError
 
+    def flash(self, root_path, test_path, board_name):
+        """Flash the device with the appropriate .hex file."""
+        raise NotImplementedError
+
     def halt(self):
         raise NotImplementedError
 
