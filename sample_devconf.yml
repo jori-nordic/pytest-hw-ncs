@@ -1,10 +1,10 @@
 devices:
   - name: nrf53-0
-    segger: '960156926'
+    snr: '960156926'
     family: nrf53
 
   - name: nrf52840-0
-    segger: '683498906'
+    snr: '683498906'
     family: nrf52
 
 configurations:

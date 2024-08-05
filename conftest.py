@@ -74,7 +74,7 @@ def make_devkits(device_list=None, target_logger_type=None):
     devkits = []
     for device in device_list:
         family = device['family'].upper()
-        id = int(device['segger'])
+        id = int(device['snr'])
         devkits.append(
             NordicDevkit(id,
                          family,
@@ -111,7 +111,7 @@ def get_device_id_from_config(config, devices, name, family):
         return None
 
     device_name = config[name + '_' + family]
-    device_id = _get_id_by_name(devices, device_name)['segger']
+    device_id = _get_id_by_name(devices, device_name)['snr']
 
     assert device_id, f'{name} not found in configuration'
     return device_id
