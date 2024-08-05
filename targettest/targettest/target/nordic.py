@@ -263,7 +263,7 @@ def list_connected_nordic_devices():
         for id in ids:
             api.connect_to_emu_with_snr(id)
             family = api.read_device_family()
-            info = {'segger': id,
+            info = {'snr': id,
                     'family': family}
             devkits.append(info)
             api.disconnect_from_emu()
