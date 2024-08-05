@@ -19,9 +19,15 @@ devices:
     snr: '1050267331'
     family: nrf52
 
+  - name: esp32c3-0
+    snr: '/dev/ttyACM12'
+    family: esp32c3
+
 configurations:
   - id: local
     default: true
+
+    dut_esp32c3: esp32c3-0
 
     dut_nrf53: nrf53-0
     tester_0_nrf53: nrf53-1
