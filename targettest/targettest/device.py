@@ -56,6 +56,7 @@ def RPCDevice(device: TargetDevice):
     try:
         # Manage RPC transport
         device.boot()
+        # TODO: refactor to device.open/close_transport()
         uart = UARTPacketTransport(port=device.serial_port)
         rpc = RPCChannel(uart, log_handler=device.append_to_log)
         uart.open(rpc.handler)
