@@ -197,7 +197,7 @@ class NordicDevkit(TargetDevice):
             halt(self.snr, self.family, self._emu)
 
 
-def get_serial_port(id, family=None, api=None):
+def get_serial_port(id, family=None):
     def _get_serial_port(id, family, api):
         ports = api.enum_emu_com_ports(id)
 
@@ -216,9 +216,6 @@ def get_serial_port(id, family=None, api=None):
             return sorted_ports[-1].path
         else:
             return sorted_ports[0].path
-
-    if api is not None:
-        return _get_serial_port(id, family, api)
 
     # TODO: figure out if this messes with a connected debugger
     with SeggerEmulator() as api:
