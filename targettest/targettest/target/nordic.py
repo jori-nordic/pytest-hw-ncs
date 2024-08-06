@@ -180,6 +180,10 @@ class NordicDevkit(TargetDevice):
     def available(self):
         return not self._in_use
 
+    def boot(self):
+        # Target is already booted up
+        pass
+
     def reset(self):
         if self._emu is None:
             LOGGER.info(f'[{self.snr}] interactive reset')

@@ -59,6 +59,13 @@ class TargetDevice(ABC):
         """Flash the device with the appropriate .hex file."""
         raise NotImplementedError
 
+    def boot(self):
+        """Boot the device.
+
+        Ensures the device is alive. This is the opposite of halt().
+        """
+        raise NotImplementedError
+
     def halt(self):
         raise NotImplementedError
 
